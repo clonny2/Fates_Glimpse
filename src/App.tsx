@@ -103,10 +103,11 @@ export default function App() {
   const [currentRealm, setCurrentRealm] = useState<Realm | null>(null);
   const [researchData, setResearchData] = useState<ResearchData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'selecting' | 'choice' | 'researching' | 'adventuring' | 'codex' | 'mapping'>('selecting');
+  const [step, setStep] = useState<'splash' | 'selecting' | 'choice' | 'researching' | 'adventuring' | 'codex' | 'mapping'>('splash');
   const [selectedRealmForChoice, setSelectedRealmForChoice] = useState<Realm | null>(null);
   const [mapSeed, setMapSeed] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [customRealms, setCustomRealms] = useState<Realm[]>([]);
   const [discoveryPrompt, setDiscoveryPrompt] = useState('');
   const [isDiscovering, setIsDiscovering] = useState(false);
@@ -116,7 +117,17 @@ export default function App() {
   const [currentTurn, setCurrentTurn] = useState<StoryStep | null>(null);
   const [input, setInput] = useState('');
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [audioRef] = useState(new Audio());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  useEffect(() => {
+    audioRef.current = new Audio();
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+    };
+  }, []);
   
   // SFX Matrix using Howler for concurrent playback
   const sfxRef = useRef<Record<string, Howl>>({});
@@ -196,51 +207,71 @@ export default function App() {
 
   useEffect(() => {
     if (audioEnabled) {
-      // Atmospheric Matrix - Expanded for more variety
+      // Atmospheric Matrix - Expanded for more variety and better mood matching
       const musicMatrix: Record<string, Record<string, string>> = {
         'kemet': {
-          'default': 'https://cdn.pixabay.com/audio/2022/10/25/audio_7315152865.mp3', // Desert caravan vibe
-          'battle': 'https://cdn.pixabay.com/audio/2024/01/29/audio_247a324fb7.mp3', // War drums
+          'default': 'https://cdn.pixabay.com/audio/2022/10/25/audio_7315152865.mp3', // Desert mystery
+          'battle': 'https://cdn.pixabay.com/audio/2023/12/03/audio_448e894c25.mp3', // War drums
+          'mystic': 'https://cdn.pixabay.com/audio/2024/01/24/audio_34d1b8c0a3.mp3', // Ancient ambient
         },
         'astral': {
-          'default': 'https://cdn.pixabay.com/audio/2023/07/26/audio_03d97f519d.mp3', // Space synth
-          'mystic': 'https://cdn.pixabay.com/audio/2021/11/25/audio_91b32e01b3.mp3',
+          'default': 'https://cdn.pixabay.com/audio/2023/07/26/audio_03d97f519d.mp3', // Space ambient
+          'battle': 'https://cdn.pixabay.com/audio/2023/06/12/audio_7995874246.mp3', // Epic sci-fi battle
+          'mystic': 'https://cdn.pixabay.com/audio/2021/11/24/audio_3879d71a81.mp3', // Ethereal
         },
         'feywild': {
-          'default': 'https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3', // Forest fantasy
-          'whimsical': 'https://cdn.pixabay.com/audio/2023/10/24/audio_3879d71a81.mp3',
+          'default': 'https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3', // Magical forest
+          'battle': 'https://cdn.pixabay.com/audio/2023/11/10/audio_556942c75a.mp3', // Forest drums
+          'mystic': 'https://cdn.pixabay.com/audio/2022/03/15/audio_e200832381.mp3', // Fairytale
         },
         'underdark': {
-          'default': 'https://cdn.pixabay.com/audio/2022/04/27/audio_e6ef82912a.mp3', // Dark ambient drone
+          'default': 'https://cdn.pixabay.com/audio/2022/04/27/audio_e6ef82912a.mp3', // Dark cave
+          'battle': 'https://cdn.pixabay.com/audio/2023/12/05/audio_783cf3a90c.mp3', // Dark intense
+          'mystic': 'https://cdn.pixabay.com/audio/2022/03/10/audio_b3c3b3131b.mp3', // Suspense
         },
-        'barovia': {
-          'default': 'https://cdn.pixabay.com/audio/2023/10/24/audio_3879d71a81.mp3', // Horror/Piano
+        'default': {
+          'default': 'https://cdn.pixabay.com/audio/2023/05/22/audio_7b864a78a2.mp3', // General fantasy
+          'battle': 'https://cdn.pixabay.com/audio/2023/11/10/audio_556942c75a.mp3',
+          'mystic': 'https://cdn.pixabay.com/audio/2023/10/05/audio_9658097b6a.mp3',
         }
       };
 
       const realmId = currentRealm?.id || 'default';
       const mood = (currentTurn?.musicMood || '').toLowerCase();
       
-      let trackUrl = 'https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3'; // Generic Base
+      const realmTracks = musicMatrix[realmId] || musicMatrix['default'];
+      let trackUrl = realmTracks['default'];
 
-      const realmTracks = musicMatrix[realmId] || musicMatrix['feywild'];
-      
-      if ((mood.includes('battle') || mood.includes('combat') || mood.includes('action')) && realmTracks['battle']) {
-        trackUrl = realmTracks['battle'];
-      } else if ((mood.includes('mystic') || mood.includes('magic') || mood.includes('ethereal')) && realmTracks['mystic']) {
-        trackUrl = realmTracks['mystic'];
-      } else if (realmTracks['default']) {
+      if (mood.includes('battle') || mood.includes('combat') || mood.includes('action') || mood.includes('fight') || mood.includes('tense')) {
+        trackUrl = realmTracks['battle'] || trackUrl;
+      } else if (mood.includes('mystic') || mood.includes('magic') || mood.includes('ethereal') || mood.includes('sacred') || mood.includes('prophecy')) {
+        trackUrl = realmTracks['mystic'] || trackUrl;
+      } else {
+        // Default ambient track if no recognized mood or initial state
         trackUrl = realmTracks['default'];
       }
 
-      if (audioRef.src !== trackUrl) {
-        audioRef.src = trackUrl;
-        audioRef.loop = true;
-        audioRef.volume = 0.25;
-        audioRef.play().catch(e => console.log("Audio waiting for user interaction"));
-      }
+      const playTrack = async () => {
+        if (!audioRef.current) return;
+        try {
+          if (audioRef.current.src !== trackUrl) {
+            audioRef.current.src = trackUrl;
+            audioRef.current.loop = true;
+            audioRef.current.volume = 0.25;
+            await audioRef.current.play();
+          } else if (audioRef.current.paused) {
+            await audioRef.current.play();
+          }
+        } catch (e) {
+          console.log("Audio waiting for user interaction or blocked:", e);
+        }
+      };
+
+      playTrack();
     } else {
-      audioRef.pause();
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
     }
   }, [audioEnabled, currentTurn?.musicMood, currentRealm?.id]);
 
@@ -277,23 +308,71 @@ export default function App() {
     }
   };
 
+  const [researchTasks, setResearchTasks] = useState<string[]>([]);
+  const [isResearchSlow, setIsResearchSlow] = useState(false);
+  
   const startResearch = async (realm: Realm) => {
     setCurrentRealm(realm);
     setStep('researching');
     setLoading(true);
+    setIsResearchSlow(false);
+    setErrorMessage(null);
+    setResearchTasks(['Analyzing ley lines...', 'Consulting the astral archives...', 'Mapping topographical variance...']);
+    
+    // Timer for slow notice
+    const slowTimer = setTimeout(() => setIsResearchSlow(true), 12000);
+
+    // Rotate tasks
+    const interval = setInterval(() => {
+      const nextTasks = [
+        'Deciphering local dialects...',
+        'Scanning for high-value artifacts...',
+        'Evaluating monster threat vectors...',
+        'Synthesizing regional lore...',
+        'Optimizing combat subroutines...',
+        'Syncing temporal fragments...',
+        'Calibrating arcane sensors...'
+      ];
+      setResearchTasks(prev => {
+        const next = nextTasks[Math.floor(Math.random() * nextTasks.length)];
+        return [next, ...prev].slice(0, 3);
+      });
+    }, 2500);
+
     try {
-      const research = await researchRealm(realm.id, realm.name);
+      console.log(`[Research Pod] Initializing search for ${realm.name}...`);
+      
+      // Use Promise.race to prevent infinite hang if Gemini takes too long
+      const researchPromise = researchRealm(realm.id, realm.name);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Temporal link timeout after 45s. The Archives are currently unstable.")), 45000)
+      );
+      
+      const research = await Promise.race([researchPromise, timeoutPromise]) as ResearchData;
+      
+      console.log(`[Research Pod] Data retrieved from library.`);
       setResearchData(research);
       setLearnedRealms(prev => prev.includes(realm.id) ? prev : [...prev, realm.id]);
       if (research.discovery) {
         setDiscoveries(prev => ({ ...prev, [realm.id]: research.discovery }));
       }
+      
+      setLoading(true);
+      console.log(`[DM Agent] Drafting prologue...`);
+      const turn = await generateStoryTurn([], realm.name, "Begin my odyssey");
+      console.log(`[DM Agent] Prologue complete.`);
+      setCurrentTurn(turn);
+      setHistory([{ role: 'assistant', content: turn.story }]);
+      
       setStep('adventuring');
-      // Start the adventure with an intro
-      handleAction("Start my journey");
     } catch (error) {
-      console.error(error);
+      console.error("[Fatal Error] Research failure:", error);
+      const msg = error instanceof Error ? error.message : "The research pod encountered a temporal distortion.";
+      setErrorMessage(`${msg} Please try again.`);
+      setStep('selecting');
     } finally {
+      clearInterval(interval);
+      clearTimeout(slowTimer);
       setLoading(false);
     }
   };
@@ -476,23 +555,56 @@ export default function App() {
               <span className="hidden md:inline">{audioEnabled ? "Ambience Active" : "Silence"}</span>
             </button>
             <div className="text-gray-500 hidden md:block">Multi-Agent RAG System Active</div>
-            {currentRealm && (
-              <div className="flex items-center gap-4">
-                <span className="text-gold font-bold">{currentRealm.name}</span>
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="hover:text-white transition-colors flex items-center gap-1 text-gray-400"
-                >
-                  <RefreshCcw size={12} /> Reset
-                </button>
-              </div>
-            )}
+          {currentRealm && (
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setAudioEnabled(!audioEnabled)}
+                className={`p-2 rounded-full transition-colors ${audioEnabled ? 'text-gold bg-gold/10' : 'text-gray-500 bg-white/5'}`}
+              >
+                {audioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+              </button>
+              <span className="text-gold font-bold">{currentRealm.name}</span>
+              <button 
+                onClick={() => setStep('selecting')}
+                className="hover:text-white transition-colors flex items-center gap-1 text-gray-400 bg-white/5 px-2 py-1 rounded-sm text-xs"
+              >
+                <RefreshCcw size={12} /> Change Realm
+              </button>
+            </div>
+          )}
           </div>
         </div>
       </header>
 
       <main className="flex-1 relative z-10 max-w-7xl mx-auto w-full p-6 flex flex-col">
         <AnimatePresence mode="wait">
+          {step === 'splash' && (
+            <motion.div
+              key="splash"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex-1 flex flex-col items-center justify-center space-y-8 text-center p-6"
+            >
+              <div className="space-y-4">
+                <h1 className="text-6xl font-serif text-white italic tracking-tighter">LORE ENGINE</h1>
+                <p className="text-gray-400 font-mono text-sm tracking-widest uppercase">Autonomous World-Building & Discovery</p>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setAudioEnabled(true);
+                  setStep('selecting');
+                }}
+                className="px-12 py-4 bg-gold text-black font-bold uppercase tracking-[4px] hover:bg-white transition-colors"
+              >
+                Enter the Multiverse
+              </motion.button>
+              <div className="text-[10px] text-gold/50 font-mono uppercase tracking-widest">v2.4.0-Flash // Audio Recommended</div>
+            </motion.div>
+          )}
+
           {step === 'selecting' && (
             <motion.div
               key="selecting"
@@ -501,6 +613,13 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="space-y-12 py-8 flex-1 flex flex-col justify-center"
             >
+              {errorMessage && (
+                <div className="bg-red-500/10 border border-red-500/50 p-4 text-red-500 text-xs text-center rounded-sm max-w-md mx-auto flex items-center gap-2">
+                  <ShieldAlert size={14} />
+                  {errorMessage}
+                  <button onClick={() => setErrorMessage(null)} className="ml-auto underline">Dismiss</button>
+                </div>
+              )}
               <div className="text-center space-y-3">
                 <div className="text-[10px] uppercase tracking-[4px] text-gray-500 font-bold mb-2">INITIALIZE PARAMETERS</div>
                 <h2 className="text-4xl font-serif text-white italic tracking-wide">
@@ -873,19 +992,61 @@ export default function App() {
               exit={{ opacity: 0 }}
               className="flex flex-col items-center justify-center min-h-[60vh] space-y-10"
             >
-              <div className="w-64 h-px bg-gray-800 relative">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: '100%' }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                  className="absolute inset-0 bg-gold"
-                />
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gold/20 blur-3xl rounded-full scale-150 animate-pulse" />
+                <div className="w-80 h-px bg-white/5 relative overflow-hidden backdrop-blur-md">
+                  <motion.div
+                    initial={{ x: '-100%' }}
+                    animate={{ x: '100%' }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-gold to-transparent"
+                  />
+                </div>
               </div>
-              <div className="text-center space-y-2">
-                <h3 className="text-xs font-bold uppercase tracking-[4px] text-gold animate-pulse">
-                  Synthesizing Lore Matrix
-                </h3>
-                <p className="text-gray-500 text-[10px] uppercase tracking-widest font-mono">Accessing Canonical Datasources: {currentRealm?.name}</p>
+              
+              <div className="text-center space-y-4 max-w-sm">
+                <div className="flex flex-col gap-1 items-center">
+                  <h3 className="text-sm font-bold uppercase tracking-[6px] text-gold animate-pulse drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]">
+                    Synthesizing Lore Matrix
+                  </h3>
+                  <div className="h-px w-24 bg-gold/30" />
+                </div>
+                
+                <div className="space-y-2">
+                  <p className="text-white/60 text-[11px] uppercase tracking-[2px] font-serif italic">
+                    Accessing Canonical Datasources: <span className="text-gold not-italic font-bold">{currentRealm?.name}</span>
+                  </p>
+                  
+                  <div className="flex flex-col items-center gap-1 min-h-[60px]">
+                    <AnimatePresence mode="wait">
+                      {researchTasks.map((task, i) => (
+                        <motion.p
+                          key={task + i}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1 - (i * 0.3), scale: 1 }}
+                          exit={{ opacity: 0, y: -5 }}
+                          className="text-gray-500 text-[10px] uppercase tracking-widest font-mono"
+                        >
+                          {task}
+                        </motion.p>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                <p className="text-[9px] text-gold/30 uppercase tracking-widest animate-pulse font-mono mt-4">
+                  Neural link established. Streaming high-density lore...
+                </p>
+
+                {isResearchSlow && (
+                  <motion.p 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-[9px] text-amber-500 font-mono italic animate-pulse mt-2"
+                  >
+                    Deep-tier analysis requiring additional compute cycles... Still researching.
+                  </motion.p>
+                )}
               </div>
             </motion.div>
           )}

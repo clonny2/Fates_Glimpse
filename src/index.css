@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Spectral:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Georgia", "Cinzel", serif;
+  --font-body: "Helvetica", "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-gold: #c9a050;
+  --color-dark-bg: #080808;
+  --color-dark-surface: #0d0d0d;
+  --color-dark-card: #111111;
+  --color-dark-accent: #1a1a1a;
+  --color-text-dim: #777777;
+  --color-text-bright: #d1d1d1;
+}
+
+@layer base {
+  body {
+    @apply bg-dark-bg text-text-bright font-body antialiased;
+  }
+}
+
+.gold-border {
+  border: 1px solid var(--color-gold);
+}
+
+.subtle-border {
+  border: 1px solid #222222;
+}
+
+.status-badge {
+  @apply bg-dark-accent border border-gold text-gold text-[10px] uppercase tracking-[2px] px-3 py-1 rounded-sm;
+}
+
+.narrative-accent {
+  border-left: 4px solid var(--color-gold);
+}
+
+.prose p {
+  @apply mb-5 leading-relaxed font-serif text-[18px] text-gray-300;
+}
+.prose em {
+  @apply italic text-gold;
+}
+.prose strong {
+  @apply font-bold text-white;
+}
+
+.hero-overlay {
+  background: linear-gradient(transparent, rgba(0,0,0,0.9));
+}
+

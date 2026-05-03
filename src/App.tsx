@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Compass, Book, Sword, Scroll, Music, Image as ImageIcon, RefreshCcw, Map as MapIcon, ChevronRight, Search, Sparkles, Globe, Volume2, VolumeX, MessageSquare, ShieldAlert, Zap, Eye } from 'lucide-react';
+import { Compass, Book, Sword, Scroll, Music, Image as ImageIcon, RefreshCcw, Map as MapIcon, ChevronRight, Search, Sparkles, Globe, Volume2, VolumeX, MessageSquare, ShieldAlert, Zap, Eye, FileText, X, Shield, Activity, Backpack, Save } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -105,6 +105,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'splash' | 'selecting' | 'choice' | 'researching' | 'adventuring' | 'codex' | 'mapping' | 'party-builder'>('splash');
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [party, setParty] = useState<Party>({ members: [], gold: 100, sharedInventory: [], reputation: 0 });
   const [selectedRealmForChoice, setSelectedRealmForChoice] = useState<Realm | null>(null);
   const [mapSeed, setMapSeed] = useState(0);
@@ -1224,6 +1225,13 @@ export default function App() {
                                     <div className="text-[9px] text-gold/60 uppercase tracking-tighter">{member.race} {member.class} • Lvl {member.level}</div>
                                  </div>
                                  <button 
+                                  onClick={() => setEditingCharacter(member)}
+                                  className="text-gray-600 hover:text-gold transition-colors"
+                                  title="Edit Sheet"
+                                 >
+                                    <FileText size={14} />
+                                 </button>
+                                 <button 
                                   onClick={() => toggleMemberInParty(member)}
                                   className="text-gray-600 hover:text-red-500 transition-colors"
                                  >
@@ -1298,6 +1306,13 @@ export default function App() {
                                     ))}
                                  </div>
                                  <div className="flex items-center gap-3">
+                                   <button 
+                                      onClick={() => setEditingCharacter(char)}
+                                      className="p-1.5 text-gray-600 hover:text-gold transition-colors"
+                                      title="Edit Sheet"
+                                   >
+                                      <FileText size={12} />
+                                   </button>
                                    <button 
                                       onClick={() => deleteCharacter(char.id)}
                                       className="p-1.5 text-gray-600 hover:text-red-500 transition-colors"
@@ -1385,7 +1400,12 @@ export default function App() {
                           <div key={member.id} className="space-y-1">
                             <div className="flex justify-between items-center">
                               <span className="text-[11px] text-white font-serif italic">{member.name}</span>
-                              <span className="text-[9px] text-gray-500">{member.hp}/{member.maxHp} HP</span>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => setEditingCharacter(member)} className="text-gray-600 hover:text-gold transition-colors">
+                                  <FileText size={10} />
+                                </button>
+                                <span className="text-[9px] text-gray-500">{member.hp}/{member.maxHp} HP</span>
+                              </div>
                             </div>
                             <div className="h-[2px] bg-white/5 w-full rounded-full overflow-hidden">
                               <motion.div 
@@ -1678,6 +1698,214 @@ export default function App() {
                 <div className="flex items-center gap-3 text-[9px] text-gray-600 uppercase tracking-widest">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   Chronicler Intelligence Grid: Multi-Agent Synthesis v4.2
+                </div>
+              </div>
+            </motion.div>
+          )}
+          {editingCharacter && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-dark-bg/90 backdrop-blur-md"
+            >
+              <div className="bg-dark-card w-full max-w-4xl subtle-border max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-white/5 flex justify-between items-center bg-dark-accent/50">
+                   <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-dark-accent rounded-sm overflow-hidden border border-white/10">
+                         <img src={`https://picsum.photos/seed/${editingCharacter.id}/100/100`} alt={editingCharacter.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                         <h3 className="text-white font-serif italic text-xl">{editingCharacter.name}</h3>
+                         <div className="text-[10px] text-gold uppercase tracking-[2px] font-bold opacity-60">
+                           Level {editingCharacter.level} {editingCharacter.race} {editingCharacter.class}
+                         </div>
+                      </div>
+                   </div>
+                   <button 
+                    onClick={() => setEditingCharacter(null)}
+                    className="text-gray-500 hover:text-white transition-colors"
+                   >
+                      <X size={20} />
+                   </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-8 grid lg:grid-cols-12 gap-12 custom-scrollbar">
+                   {/* Left Column: Stats & Skills */}
+                   <div className="lg:col-span-5 space-y-8">
+                      <div className="space-y-4">
+                         <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
+                           <Activity size={10} /> Ability Scores
+                         </h4>
+                         <div className="grid grid-cols-3 gap-4">
+                            {Object.entries(editingCharacter.stats || { strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 }).map(([stat, val]) => (
+                               <div key={stat} className="bg-white/5 p-3 rounded-sm border border-white/5 text-center group hover:border-gold/30 transition-all">
+                                  <div className="text-[9px] uppercase text-gray-500 font-bold mb-1">{stat.slice(0, 3)}</div>
+                                  <input 
+                                    type="number"
+                                    value={val}
+                                    onChange={(e) => {
+                                      const newVal = parseInt(e.target.value) || 0;
+                                      setEditingCharacter(prev => prev ? ({
+                                        ...prev,
+                                        stats: { ...prev.stats, [stat]: newVal }
+                                      }) : null);
+                                    }}
+                                    className="bg-transparent text-white font-serif text-xl w-full text-center outline-none"
+                                  />
+                                  <div className="text-[10px] text-emerald-500 font-mono">
+                                    {Math.floor((val - 10) / 2) >= 0 ? `+${Math.floor((val - 10) / 2)}` : Math.floor((val - 10) / 2)}
+                                  </div>
+                               </div>
+                            ))}
+                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                         <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
+                           <Sword size={10} /> Proficiencies & Skills
+                         </h4>
+                         <div className="flex flex-wrap gap-2">
+                            {(editingCharacter.skills || []).map((skill, i) => (
+                               <div key={i} className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-sm border border-white/10 group">
+                                  <span className="text-[11px] text-gray-300">{skill}</span>
+                                  <button 
+                                    onClick={() => {
+                                      setEditingCharacter(prev => prev ? ({
+                                        ...prev,
+                                        skills: prev.skills.filter((_, idx) => idx !== i)
+                                      }) : null);
+                                    }}
+                                    className="text-gray-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                  >
+                                    <X size={10} />
+                                  </button>
+                               </div>
+                            ))}
+                            <button 
+                              onClick={() => {
+                                const skill = prompt("Add skill/proficiency:");
+                                if (skill) {
+                                  setEditingCharacter(prev => prev ? ({
+                                    ...prev,
+                                    skills: [...(prev.skills || []), skill]
+                                  }) : null);
+                                }
+                              }}
+                              className="text-[10px] uppercase tracking-widest text-gold hover:text-white transition-colors border border-gold/30 px-2 py-1 rounded-sm"
+                            >
+                              + New Skill
+                            </button>
+                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
+                           <Shield size={10} /> Vitality
+                         </h4>
+                         <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-white/5 p-4 border border-white/5">
+                               <div className="text-[9px] uppercase text-gray-500 font-bold mb-1">Current HP</div>
+                               <input 
+                                 type="number"
+                                 value={editingCharacter.hp}
+                                 onChange={(e) => setEditingCharacter(prev => prev ? ({ ...prev, hp: parseInt(e.target.value) || 0 }) : null)}
+                                 className="bg-transparent text-white font-serif text-3xl w-full outline-none"
+                               />
+                            </div>
+                            <div className="bg-white/5 p-4 border border-white/5">
+                               <div className="text-[9px] uppercase text-gray-500 font-bold mb-1">Max HP</div>
+                               <input 
+                                 type="number"
+                                 value={editingCharacter.maxHp}
+                                 onChange={(e) => setEditingCharacter(prev => prev ? ({ ...prev, maxHp: parseInt(e.target.value) || 0 }) : null)}
+                                 className="bg-transparent text-white font-serif text-3xl w-full outline-none"
+                               />
+                            </div>
+                         </div>
+                      </div>
+                   </div>
+
+                   {/* Right Column: Inventory & Lore */}
+                   <div className="lg:col-span-7 space-y-8">
+                      <div className="space-y-4">
+                         <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
+                           <Backpack size={10} /> Inventory & Equipment
+                         </h4>
+                         <div className="grid grid-cols-2 gap-2">
+                            {editingCharacter.inventory.map((item, i) => (
+                               <div key={i} className="flex items-center gap-3 bg-white/5 p-3 rounded-sm border border-white/5 group">
+                                  <input 
+                                    type="text"
+                                    value={item}
+                                    onChange={(e) => {
+                                      setEditingCharacter(prev => {
+                                        if (!prev) return null;
+                                        const nextInv = [...prev.inventory];
+                                        nextInv[i] = e.target.value;
+                                        return { ...prev, inventory: nextInv };
+                                      });
+                                    }}
+                                    className="bg-transparent text-[11px] text-gray-300 w-full outline-none"
+                                  />
+                                  <button 
+                                    onClick={() => {
+                                      setEditingCharacter(prev => prev ? ({
+                                        ...prev,
+                                        inventory: prev.inventory.filter((_, idx) => idx !== i)
+                                      }) : null);
+                                    }}
+                                    className="text-gray-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                               </div>
+                            ))}
+                            <button 
+                              onClick={() => {
+                                setEditingCharacter(prev => prev ? ({
+                                  ...prev,
+                                  inventory: [...(prev.inventory || []), "New Item"]
+                                }) : null);
+                              }}
+                              className="col-span-2 text-[10px] uppercase tracking-widest text-gold hover:text-white transition-colors border border-gold/30 p-3 rounded-sm text-center border-dashed"
+                            >
+                              + Acquire Item
+                            </button>
+                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                         <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
+                           <Scroll size={10} /> Backstory & Persona
+                         </h4>
+                         <textarea 
+                           value={editingCharacter.description}
+                           onChange={(e) => setEditingCharacter(prev => prev ? ({ ...prev, description: e.target.value }) : null)}
+                           className="w-full h-48 bg-white/5 p-6 rounded-sm border border-white/5 text-gray-300 text-sm leading-relaxed outline-none focus:border-gold/30 transition-colors custom-scrollbar"
+                         />
+                      </div>
+                   </div>
+                </div>
+
+                <div className="p-6 border-t border-white/5 bg-dark-accent/30 flex justify-end gap-4">
+                   <button 
+                    onClick={() => setEditingCharacter(null)}
+                    className="px-6 py-2 text-[10px] uppercase tracking-widest font-bold text-gray-500 hover:text-white transition-colors"
+                   >
+                     Discard Changes
+                   </button>
+                   <button 
+                    onClick={async () => {
+                      if (!editingCharacter) return;
+                      await saveNewCharacter(editingCharacter);
+                      setEditingCharacter(null);
+                      playSfx('magic');
+                    }}
+                    className="bg-gold text-black px-8 py-2 text-[10px] uppercase font-black tracking-[4px] hover:bg-white transition-all flex items-center gap-2 shadow-xl shadow-gold/20"
+                   >
+                     <Save size={14} /> Synchronize Sheet
+                   </button>
                 </div>
               </div>
             </motion.div>

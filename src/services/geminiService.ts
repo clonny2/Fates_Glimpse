@@ -187,11 +187,24 @@ export async function generateRandomCharacter(realmName: string) {
             level: { type: Type.NUMBER },
             hp: { type: Type.NUMBER },
             maxHp: { type: Type.NUMBER },
+            stats: {
+              type: Type.OBJECT,
+              properties: {
+                strength: { type: Type.NUMBER },
+                dexterity: { type: Type.NUMBER },
+                constitution: { type: Type.NUMBER },
+                intelligence: { type: Type.NUMBER },
+                wisdom: { type: Type.NUMBER },
+                charisma: { type: Type.NUMBER }
+              },
+              required: ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]
+            },
+            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
             inventory: { type: Type.ARRAY, items: { type: Type.STRING } },
             description: { type: Type.STRING },
             imagePrompt: { type: Type.STRING }
           },
-          required: ["id", "name", "race", "class", "level", "hp", "maxHp", "inventory", "description", "imagePrompt"]
+          required: ["id", "name", "race", "class", "level", "hp", "maxHp", "stats", "skills", "inventory", "description", "imagePrompt"]
         }
       },
       contents: [{ role: "user", parts: [{ text: "Generate a legendary adventurer." }] }]

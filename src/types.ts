@@ -135,6 +135,15 @@ export type Character = {
   level: number;
   hp: number;
   maxHp: number;
+  stats: {
+    strength: number;
+    dexterity: number;
+    constitution: number;
+    intelligence: number;
+    wisdom: number;
+    charisma: number;
+  };
+  skills: string[];
   inventory: string[];
   description: string;
   imagePrompt: string;

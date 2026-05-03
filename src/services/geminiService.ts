@@ -176,7 +176,15 @@ export async function generateRandomCharacter(realmName: string) {
       model: "gemini-3-flash-preview",
       config: {
         responseMimeType: "application/json",
-        systemInstruction: `Create a unique D&D character for the realm: ${realmName}.`,
+        systemInstruction: `You are a Master Hero-Maker for the D&D realm: ${realmName}. 
+        Your task is to create a legendary, unique character that fits perfectly into the local lore.
+        
+        CRITICAL GUIDELINES:
+        1. NAME: Avoid generic names. Use the linguistic style of ${realmName}. The name must feel storied and distinct.
+        2. DESCRIPTION: Write a rich, atmospheric 3-4 sentence backstory. Explain their motivation and one dark secret or unique quirk.
+        3. IMAGE PROMPT: Create a highly detailed, cinematic D&D portrait prompt for this specific character.
+        4. STATS: Roll 4d6 (drop lowest) for stats. Level should be between 1-5 unless specified.
+        5. UNIQUENESS: Ensure the combination of race, class, and background is uncommon and compelling.`,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -207,7 +215,7 @@ export async function generateRandomCharacter(realmName: string) {
           required: ["id", "name", "race", "class", "level", "hp", "maxHp", "stats", "skills", "inventory", "description", "imagePrompt"]
         }
       },
-      contents: [{ role: "user", parts: [{ text: "Generate a legendary adventurer." }] }]
+      contents: [{ role: "user", parts: [{ text: `Summon a distinct hero specifically belonging to ${realmName}.` }] }]
     });
     return extractJson(response.text || '{}');
   } catch (e) {

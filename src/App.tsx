@@ -5,11 +5,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Compass, Book, Sword, Scroll, Music, Image as ImageIcon, RefreshCcw, Map as MapIcon, ChevronRight, Search, Sparkles, Globe, Volume2, VolumeX, MessageSquare, ShieldAlert, Zap, Eye, FileText, X, Shield, Activity, Backpack, Save } from 'lucide-react';
+import { Compass, Book, Sword, Scroll, Music, Image as ImageIcon, RefreshCcw, Map as MapIcon, ChevronRight, ChevronLeft, Search, Sparkles, Globe, Volume2, VolumeX, MessageSquare, ShieldAlert, Zap, Eye, FileText, X, Shield, Activity, Backpack, Save, Skull } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Howl } from 'howler';
+import { Howl, Howler } from 'howler';
 
 import { REALMS, Realm, StoryStep, ChatMessage, ResearchData, Character, Party } from './types';
 import { researchRealm, generateStoryTurn, getLearnedRealms, generateCustomRealm, chatWithNPC, getMonsterTactics, analyzeLore, getStrategicInsight, generateRandomCharacter } from './services/geminiService';
@@ -103,7 +103,7 @@ export default function App() {
   const [currentRealm, setCurrentRealm] = useState<Realm | null>(null);
   const [researchData, setResearchData] = useState<ResearchData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'splash' | 'selecting' | 'choice' | 'researching' | 'adventuring' | 'codex' | 'mapping' | 'party-builder'>('splash');
+  const [step, setStep] = useState<'splash' | 'selecting' | 'choice' | 'researching' | 'adventuring' | 'codex' | 'mapping' | 'party-builder' | 'bestiary'>('splash');
   const [characters, setCharacters] = useState<Character[]>([]);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [party, setParty] = useState<Party>({ members: [], gold: 100, sharedInventory: [], reputation: 0 });
@@ -120,40 +120,58 @@ export default function App() {
   const [currentTurn, setCurrentTurn] = useState<StoryStep | null>(null);
   const [input, setInput] = useState('');
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  
-  useEffect(() => {
-    audioRef.current = new Audio();
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-      }
-    };
-  }, []);
-  
-  // SFX Matrix using Howler for concurrent playback
+  const mainTrackRef = useRef<Howl | null>(null);
   const sfxRef = useRef<Record<string, Howl>>({});
   const locationAmbienceRef = useRef<Howl | null>(null);
+
+  const [specialtyResult, setSpecialtyResult] = useState<{ type: string, content: string, name: string, item?: any } | null>(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [npcChatHistory, setNpcChatHistory] = useState<ChatMessage[]>([]);
+  const [isNpcTyping, setIsNpcTyping] = useState(false);
+
+  // Initialize Audio unlocking
+  useEffect(() => {
+    const handleGesture = () => {
+      if (typeof Howler !== 'undefined' && Howler.ctx && Howler.ctx.state === 'suspended') {
+        Howler.ctx.resume().then(() => {
+          console.log("Audio Context Resumed via Gesture");
+        });
+      }
+    };
+    window.addEventListener('click', handleGesture);
+    window.addEventListener('keydown', handleGesture);
+    window.addEventListener('touchstart', handleGesture);
+    return () => {
+      window.removeEventListener('click', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+      window.removeEventListener('touchstart', handleGesture);
+    };
+  }, []);
 
   useEffect(() => {
     // Initialize SFX library
     sfxRef.current = {
-      click: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_783cf3a90c.mp3'], volume: 0.4 }),
-      roll: new Howl({ src: ['https://cdn.pixabay.com/audio/2021/08/04/audio_333a41b59c.mp3'], volume: 0.6 }),
-      paper: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_029584fd09.mp3'], volume: 0.5 }),
-      sword: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_b3c3b3131b.mp3'], volume: 0.5 }), 
-      hit: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_c89938b8e8.mp3'], volume: 0.4 }),
-      miss: new Howl({ src: ['https://cdn.pixabay.com/audio/2024/02/09/audio_65ae10b06b.mp3'], volume: 0.3 }),
-      block: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_c8de304247.mp3'], volume: 0.4 }),
-      magic: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_e200832381.mp3'], volume: 0.4 }), 
-      door: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/24/audio_9ef8145717.mp3'], volume: 0.5 }), 
-      mystic: new Howl({ src: ['https://cdn.pixabay.com/audio/2023/10/05/audio_9658097b6a.mp3'], volume: 0.3 }),
-      footsteps: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_6ba164c9d9.mp3'], volume: 0.2 }),
+      click: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8a73566.mp3'], volume: 0.1, html5: true }),
+      roll: new Howl({ src: ['https://cdn.pixabay.com/audio/2021/08/04/audio_333a41b59c.mp3'], volume: 0.6, html5: true }),
+      paper: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_029584fd09.mp3'], volume: 0.5, html5: true }),
+      sword: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_b3c3b3131b.mp3'], volume: 0.5, html5: true }), 
+      hit: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_c89938b8e8.mp3'], volume: 0.4, html5: true }),
+      miss: new Howl({ src: ['https://cdn.pixabay.com/audio/2024/02/09/audio_65ae10b06b.mp3'], volume: 0.3, html5: true }),
+      block: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_c8de304247.mp3'], volume: 0.4, html5: true }),
+      magic: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_e200832381.mp3'], volume: 0.4, html5: true }), 
+      door: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/24/audio_9ef8145717.mp3'], volume: 0.5, html5: true }), 
+      mystic: new Howl({ src: ['https://cdn.pixabay.com/audio/2023/10/05/audio_9658097b6a.mp3'], volume: 0.3, html5: true }),
+      footsteps: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_6ba164c9d9.mp3'], volume: 0.2, html5: true }),
     };
 
+    if (typeof Howler !== 'undefined') {
+      Howler.autoUnlock = true;
+    }
+
     return () => {
-      if (locationAmbienceRef.current) locationAmbienceRef.current.stop();
+      Object.values(sfxRef.current).forEach(sfx => sfx.unload());
+      if (locationAmbienceRef.current) locationAmbienceRef.current.unload();
+      if (mainTrackRef.current) mainTrackRef.current.unload();
     };
   }, []);
 
@@ -203,37 +221,40 @@ export default function App() {
     sfxRef.current[type].play();
   };
 
-  const [specialtyResult, setSpecialtyResult] = useState<{ type: string, content: string, name: string, item?: any } | null>(null);
-  const [insightLoading, setInsightLoading] = useState(false);
-  const [npcChatHistory, setNpcChatHistory] = useState<ChatMessage[]>([]);
-  const [isNpcTyping, setIsNpcTyping] = useState(false);
-
   useEffect(() => {
+    if (typeof Howler !== 'undefined') {
+      Howler.mute(!audioEnabled);
+    }
+
     if (audioEnabled) {
-      // Atmospheric Matrix - Expanded for more variety and better mood matching
       const musicMatrix: Record<string, Record<string, string>> = {
         'kemet': {
-          'default': 'https://cdn.pixabay.com/audio/2022/10/25/audio_7315152865.mp3', // Desert mystery
-          'battle': 'https://cdn.pixabay.com/audio/2023/12/03/audio_448e894c25.mp3', // War drums
-          'mystic': 'https://cdn.pixabay.com/audio/2024/01/24/audio_34d1b8c0a3.mp3', // Ancient ambient
+          'default': 'https://cdn.pixabay.com/audio/2022/10/25/audio_7315152865.mp3',
+          'battle': 'https://cdn.pixabay.com/audio/2023/12/03/audio_448e894c25.mp3',
+          'mystic': 'https://cdn.pixabay.com/audio/2024/01/24/audio_34d1b8c0a3.mp3',
         },
-        'astral': {
-          'default': 'https://cdn.pixabay.com/audio/2023/07/26/audio_03d97f519d.mp3', // Space ambient
-          'battle': 'https://cdn.pixabay.com/audio/2023/06/12/audio_7995874246.mp3', // Epic sci-fi battle
-          'mystic': 'https://cdn.pixabay.com/audio/2021/11/24/audio_3879d71a81.mp3', // Ethereal
+        'forgotten-realms': {
+          'default': 'https://cdn.pixabay.com/audio/2023/05/22/audio_7b864a78a2.mp3',
+          'battle': 'https://cdn.pixabay.com/audio/2023/11/10/audio_556942c75a.mp3', 
+          'mystic': 'https://cdn.pixabay.com/audio/2023/10/05/audio_9658097b6a.mp3',
         },
-        'feywild': {
-          'default': 'https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3', // Magical forest
-          'battle': 'https://cdn.pixabay.com/audio/2023/11/10/audio_556942c75a.mp3', // Forest drums
-          'mystic': 'https://cdn.pixabay.com/audio/2022/03/15/audio_e200832381.mp3', // Fairytale
+        'eberron': {
+          'default': 'https://cdn.pixabay.com/audio/2024/01/24/audio_34d1b8c0a3.mp3',
+          'battle': 'https://cdn.pixabay.com/audio/2023/06/12/audio_7995874246.mp3',
+          'mystic': 'https://cdn.pixabay.com/audio/2023/07/26/audio_03d97f519d.mp3',
         },
-        'underdark': {
-          'default': 'https://cdn.pixabay.com/audio/2022/04/27/audio_e6ef82912a.mp3', // Dark cave
-          'battle': 'https://cdn.pixabay.com/audio/2023/12/05/audio_783cf3a90c.mp3', // Dark intense
-          'mystic': 'https://cdn.pixabay.com/audio/2022/03/10/audio_b3c3b3131b.mp3', // Suspense
+        'ravenloft': {
+          'default': 'https://cdn.pixabay.com/audio/2022/04/27/audio_e6ef82912a.mp3',
+          'battle': 'https://cdn.pixabay.com/audio/2023/12/05/audio_783cf3a90c.mp3',
+          'mystic': 'https://cdn.pixabay.com/audio/2022/03/10/audio_b3c3b3131b.mp3',
+        },
+        'spelljammer': {
+          'default': 'https://cdn.pixabay.com/audio/2023/07/26/audio_03d97f519d.mp3',
+          'battle': 'https://cdn.pixabay.com/audio/2023/06/12/audio_7995874246.mp3',
+          'mystic': 'https://cdn.pixabay.com/audio/2021/11/24/audio_3879d71a81.mp3',
         },
         'default': {
-          'default': 'https://cdn.pixabay.com/audio/2023/05/22/audio_7b864a78a2.mp3', // General fantasy
+          'default': 'https://cdn.pixabay.com/audio/2023/05/22/audio_7b864a78a2.mp3',
           'battle': 'https://cdn.pixabay.com/audio/2023/11/10/audio_556942c75a.mp3',
           'mystic': 'https://cdn.pixabay.com/audio/2023/10/05/audio_9658097b6a.mp3',
         }
@@ -241,39 +262,34 @@ export default function App() {
 
       const realmId = currentRealm?.id || 'default';
       const mood = (currentTurn?.musicMood || '').toLowerCase();
-      
       const realmTracks = musicMatrix[realmId] || musicMatrix['default'];
       let trackUrl = realmTracks['default'];
 
-      if (mood.includes('battle') || mood.includes('combat') || mood.includes('action') || mood.includes('fight') || mood.includes('tense')) {
+      if (mood.includes('battle') || mood.includes('combat') || mood.includes('action')) {
         trackUrl = realmTracks['battle'] || trackUrl;
-      } else if (mood.includes('mystic') || mood.includes('magic') || mood.includes('ethereal') || mood.includes('sacred') || mood.includes('prophecy')) {
+      } else if (mood.includes('mystic') || mood.includes('magic')) {
         trackUrl = realmTracks['mystic'] || trackUrl;
-      } else {
-        // Default ambient track if no recognized mood or initial state
-        trackUrl = realmTracks['default'];
       }
 
-      const playTrack = async () => {
-        if (!audioRef.current) return;
-        try {
-          if (audioRef.current.src !== trackUrl) {
-            audioRef.current.src = trackUrl;
-            audioRef.current.loop = true;
-            audioRef.current.volume = 0.25;
-            await audioRef.current.play();
-          } else if (audioRef.current.paused) {
-            await audioRef.current.play();
-          }
-        } catch (e) {
-          console.log("Audio waiting for user interaction or blocked:", e);
+      if (mainTrackRef.current) {
+        // @ts-ignore
+        if (mainTrackRef.current._src !== trackUrl) {
+          mainTrackRef.current.fade(0.25, 0, 2000).once('fade', () => {
+            mainTrackRef.current?.stop();
+            mainTrackRef.current = new Howl({ src: [trackUrl], loop: true, volume: 0, html5: true });
+            mainTrackRef.current.play();
+            mainTrackRef.current.fade(0, 0.25, 2000);
+          });
+        } else if (!mainTrackRef.current.playing()) {
+          mainTrackRef.current.play();
         }
-      };
-
-      playTrack();
+      } else {
+        mainTrackRef.current = new Howl({ src: [trackUrl], loop: true, volume: 0.25, html5: true });
+        mainTrackRef.current.play();
+      }
     } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
+      if (mainTrackRef.current) {
+        mainTrackRef.current.pause();
       }
     }
   }, [audioEnabled, currentTurn?.musicMood, currentRealm?.id]);
@@ -440,10 +456,17 @@ export default function App() {
   };
 
   const generateAndSaveRandomCharacter = async () => {
-    if (!currentRealm) return;
     setLoading(true);
     try {
-      const char = await generateRandomCharacter(currentRealm.name);
+      const realmName = currentRealm?.name || "The Great Multiverse";
+      const archetypes = [
+        "Reclusive Scholarly", "Broken Veteran", "Chaos-Touched", "Legacy-Bound", 
+        "Shadow-Born", "Nature-Vowed", "Silver-Tongued", "Iron-Willed", 
+        "Cursed Aristocrat", "Street-Urchin Savant", "Planar Traveler", "Berserker Poet"
+      ];
+      const r = Math.floor(Math.random() * archetypes.length);
+      const hint = archetypes[r];
+      const char = await generateRandomCharacter(`${realmName} (Hint: Character should embody a ${hint} archetype)`);
       await saveNewCharacter(char);
       playSfx('magic');
     } catch (e) {
@@ -454,17 +477,19 @@ export default function App() {
   };
 
   const generateFullRandomParty = async () => {
-    if (!currentRealm) return;
     setLoading(true);
     try {
+      const realmName = currentRealm?.name || "The Great Multiverse";
       const newChars = [];
+      const archetypes = ["Rogueish", "Academic", "Brutal", "Divinely-Inspired", "Ancient", "Young & Reckless"];
       for (let i = 0; i < 3; i++) {
-        const char = await generateRandomCharacter(currentRealm.name);
+        const hint = archetypes[i % archetypes.length];
+        const char = await generateRandomCharacter(`${realmName} (${hint} vibe)`);
         await saveNewCharacter(char);
         newChars.push(char);
       }
-      setParty(prev => ({ ...prev, members: newChars }));
-      playSfx('magic');
+      setParty(prev => ({ ...prev, members: [...prev.members, ...newChars].slice(0, 4) }));
+      playSfx('mystic');
     } catch (e) {
       console.error(e);
     } finally {
@@ -650,7 +675,7 @@ export default function App() {
       {/* Background Ambience Layers */}
       <div className="absolute inset-0 z-0 opacity-[0.07] pointer-events-none mix-blend-overlay">
         <img 
-          src={`https://picsum.photos/seed/dnd-hero-dragon-multiverse/1920/1080`} 
+          src={`/image?prompt=${encodeURIComponent(currentRealm?.imagePrompt || 'legendary Dungeons and Dragons artifact and monsters in cosmic chaos')}&seed=background-dnd`} 
           className="w-full h-full object-cover"
           alt="Ancient dragon background"
         />
@@ -671,7 +696,54 @@ export default function App() {
           </div>
           <div className="flex items-center gap-6 text-[11px] uppercase tracking-tighter">
             <button 
-              onClick={() => setAudioEnabled(!audioEnabled)}
+              onClick={() => {
+                if (step !== 'splash') {
+                  setStep('bestiary');
+                  playSfx('paper');
+                  if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
+                }
+              }}
+              className={cn("flex items-center gap-2 transition-all p-2 rounded-sm", step === 'bestiary' ? "text-gold bg-gold/10" : "text-gray-500 hover:text-white")}
+            >
+              <Skull size={16} /> 
+              <span className="hidden md:inline">Bestiary</span>
+            </button>
+            <button 
+              onClick={() => {
+                if (step !== 'splash') {
+                  setStep('bestiary');
+                  playSfx('paper');
+                  if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
+                }
+              }}
+              className={cn("flex items-center gap-2 transition-all p-2 rounded-sm", step === 'bestiary' ? "text-gold bg-gold/10" : "text-gray-500 hover:text-white")}
+            >
+              <Skull size={16} /> 
+              <span className="hidden md:inline">Bestiary</span>
+            </button>
+            <button 
+              onClick={() => {
+                if (step !== 'splash') {
+                  setStep('party-builder');
+                  playSfx('click');
+                  if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
+                }
+              }}
+              className={cn("flex items-center gap-2 transition-all p-2 rounded-sm", step === 'party-builder' ? "text-gold bg-gold/10" : "text-gray-500 hover:text-white")}
+            >
+              <Zap size={16} /> 
+              <span className="hidden md:inline">Global Roster</span>
+            </button>
+            <button 
+              onClick={() => {
+                const nextState = !audioEnabled;
+                setAudioEnabled(nextState);
+                if (nextState) {
+                  // @ts-ignore
+                  if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
+                  playSfx('click');
+                }
+              }}
               className={cn("flex items-center gap-2 transition-all p-2 rounded-sm", audioEnabled ? "text-gold bg-gold/10" : "text-gray-500 hover:text-white")}
             >
               {audioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
@@ -681,7 +753,15 @@ export default function App() {
           {currentRealm && (
             <div className="flex items-center gap-4">
               <button 
-                onClick={() => setAudioEnabled(!audioEnabled)}
+                onClick={() => {
+                  const nextState = !audioEnabled;
+                  setAudioEnabled(nextState);
+                  if (nextState) {
+                    // @ts-ignore
+                    if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
+                    playSfx('click');
+                  }
+                }}
                 className={`p-2 rounded-full transition-colors ${audioEnabled ? 'text-gold bg-gold/10' : 'text-gray-500 bg-white/5'}`}
               >
                 {audioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
@@ -743,8 +823,16 @@ export default function App() {
                   <button onClick={() => setErrorMessage(null)} className="ml-auto underline">Dismiss</button>
                 </div>
               )}
-              <div className="text-center space-y-3">
-                <div className="text-[10px] uppercase tracking-[4px] text-gray-500 font-bold mb-2">INITIALIZE PARAMETERS</div>
+              <div className="text-center space-y-4">
+                <div className="flex flex-col items-center gap-3">
+                   <div className="text-[10px] uppercase tracking-[4px] text-gray-500 font-bold mb-2">INITIALIZE PARAMETERS</div>
+                   <button 
+                     onClick={() => setStep('party-builder')}
+                     className="bg-white/5 border border-white/10 px-4 py-1.5 rounded-full text-[10px] uppercase tracking-widest text-gold hover:bg-gold hover:text-black transition-all flex items-center gap-2"
+                   >
+                     <Zap size={10} /> Manage Characters ({characters.length})
+                   </button>
+                </div>
                 <h2 className="text-4xl font-serif text-white italic tracking-wide">
                   Select Realm for Deep Research
                 </h2>
@@ -789,7 +877,7 @@ export default function App() {
                     >
                       <div className="absolute inset-0 opacity-40 group-hover:opacity-70 transition-opacity">
                         <img 
-                          src={realm.imageUrl || `https://picsum.photos/seed/${encodeURIComponent(realm.id)}-dnd-fantasy-art/400/600`} 
+                          src={realm.imageUrl || `/image?prompt=${encodeURIComponent('D&D campaign setting art for ' + realm.name)}&seed=${realm.id}`} 
                           alt={realm.name}
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover transition-all duration-700"
@@ -870,9 +958,9 @@ export default function App() {
                     <Book size={32} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-serif text-white italic mb-2">Access Archive</h3>
+                    <h3 className="text-xl font-serif text-white italic mb-2">Monster Bestiary & Archive</h3>
                     <p className="text-gray-500 text-xs leading-relaxed">
-                      Consult the Codex of Knowledge containing already discovered NPCs, monsters, and artifacts.
+                      Consult the Codex of Knowledge. Contains learned monsters, legendary heroes, and artifacts of this realm.
                     </p>
                   </div>
                   <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold group-hover:translate-x-2 transition-transform">
@@ -997,16 +1085,26 @@ export default function App() {
 
                     return (
                       <div key={section.label} className="space-y-6">
-                        <div className="flex items-center gap-3 text-[10px] uppercase tracking-[3px] text-gray-500 font-bold">
-                          <span className="text-gold opacity-50">{section.icon}</span>
-                          {section.label}
+                        <div className="flex justify-between items-center w-full">
+                          <div className="flex items-center gap-3 text-[10px] uppercase tracking-[3px] text-gray-500 font-bold">
+                            <span className="text-gold opacity-50">{section.icon}</span>
+                            {section.label}
+                          </div>
+                          {section.label === 'Iconic Monsters' && (
+                            <button 
+                              onClick={() => setStep('bestiary')}
+                              className="text-[10px] text-gold hover:text-white transition-colors flex items-center gap-1 font-bold uppercase tracking-widest"
+                            >
+                              Open Specialized Codex <Skull size={10} />
+                            </button>
+                          )}
                         </div>
                         <div className="grid sm:grid-cols-2 gap-6">
                           {filteredItems.map((item, idx) => (
                             <div key={idx} className="group bg-dark-card subtle-border flex flex-col relative overflow-hidden h-64">
                               <div className="absolute inset-0 opacity-20 group-hover:opacity-60 transition-opacity">
                                 <img 
-                                  src={`https://picsum.photos/seed/${encodeURIComponent(item.imagePrompt)}/400/400`} 
+                                  src={`/image?prompt=${encodeURIComponent(item.imagePrompt || ('Dungeons and Dragons entity: ' + item.name))}&seed=${item.name}`} 
                                   alt={item.name}
                                   className="w-full h-full object-cover transition-all duration-700"
                                 />
@@ -1182,7 +1280,70 @@ export default function App() {
             </motion.div>
           )}
 
-          {step === 'party-builder' && currentRealm && (
+          {step === 'bestiary' && (
+            <motion.div
+              key="bestiary"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.02 }}
+              className="flex flex-col space-y-8 py-8 flex-1"
+            >
+              <div className="flex justify-between items-start">
+                 <button 
+                   onClick={() => setStep('selecting')}
+                   className="text-gray-500 hover:text-white transition-colors flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest"
+                 >
+                   <ChevronLeft size={14} /> Exit Codex
+                 </button>
+                 <div className="text-right">
+                   <div className="text-[10px] uppercase tracking-[4px] text-gold font-bold">MONSTER_BEASTIARY_CODEX</div>
+                   <h2 className="text-4xl font-serif text-white italic tracking-wide">Threats of the Realm</h2>
+                 </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {(researchData?.monsters || [
+                  { name: "Ancient Shadow Dragon", challenge: "24", description: "A beast of pure darkness that feeds on the souls of the forgotten." },
+                  { name: "Mind Flayer Arcanist", challenge: "10", description: "Psionic horrors that master the weave to enslave entire civilizations." },
+                  { name: "Beholder Tyrant", challenge: "13", description: "A multi-eyed nightmare that projects an anti-magic cone of pure hate." }
+                ]).map((monster, idx) => (
+                  <div key={idx} className="group bg-dark-card/50 subtle-border p-6 space-y-4 hover:border-gold/30 transition-all">
+                    <div className="h-48 bg-black/40 rounded-sm overflow-hidden mb-4 border border-white/5 relative">
+                      <img 
+                        src={`/image?prompt=${encodeURIComponent('D&D monster concept art: ' + monster.name + ' from ' + (currentRealm?.name || 'Ravenloft'))}&seed=${monster.name}`}
+                        className="w-full h-full object-cover grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700" 
+                        alt={monster.name}
+                      />
+                      <div className="absolute top-2 right-2 bg-black/80 px-2 py-1 text-[10px] text-gold border border-gold/20">
+                        CR {monster.challenge}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-serif text-white italic group-hover:text-gold transition-colors">{monster.name}</h3>
+                      <p className="text-gray-500 text-xs mt-2 leading-relaxed italic line-clamp-3">
+                        {monster.description}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        playSfx('paper');
+                        setSpecialtyResult({
+                          type: 'monster',
+                          name: monster.name,
+                          content: monster.description,
+                        });
+                      }}
+                      className="w-full py-2 bg-white/5 text-[10px] uppercase font-bold tracking-widest text-gray-400 hover:bg-gold hover:text-black transition-all"
+                    >
+                      Inspect Weaknesses
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'party-builder' && (
             <motion.div
               key="party-builder"
               initial={{ opacity: 0, x: 50 }}
@@ -1191,9 +1352,27 @@ export default function App() {
               className="flex flex-col space-y-12 py-8 flex-1"
             >
               <div className="text-center space-y-4">
-                 <div className="text-[10px] uppercase tracking-[4px] text-gold font-bold">ARCANE_ASSEMBLY_CHAMBER</div>
+                 <div className="flex justify-between items-start">
+                   <button 
+                     onClick={() => setStep('selecting')}
+                     className="text-gray-500 hover:text-white transition-colors flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest"
+                   >
+                     <ChevronRight size={14} className="rotate-180" /> Back to Matrix
+                   </button>
+                   <div className="text-right">
+                     <div className="text-[10px] uppercase tracking-[4px] text-gold font-bold">ARCANE_ASSEMBLY_CHAMBER</div>
+                   </div>
+                 </div>
                  <h2 className="text-4xl font-serif text-white italic tracking-wide">Prepare for the Journey</h2>
                  <p className="text-gray-500 text-sm italic">Recruit legendary heroes from the archives or summon new ones from the ether.</p>
+                 {!currentRealm && (
+                   <button 
+                    onClick={() => setStep('selecting')}
+                    className="text-amber-500 text-[10px] uppercase font-bold tracking-widest hover:text-white transition-colors flex items-center gap-2 mx-auto"
+                   >
+                     <Compass size={12} /> No Realm Selected. Choose one before embarking.
+                   </button>
+                 )}
               </div>
 
               <div className="grid lg:grid-cols-12 gap-12">
@@ -1218,7 +1397,7 @@ export default function App() {
                                 className="group relative bg-white/5 p-4 subtle-border flex gap-4 items-center"
                               >
                                  <div className="w-12 h-12 shrink-0 bg-dark-accent rounded-sm overflow-hidden border border-white/10">
-                                    <img src={`https://picsum.photos/seed/${member.id}/100/100`} alt={member.name} className="w-full h-full object-cover grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100" />
+                                    <img src={`/image?prompt=${encodeURIComponent('Dungeons and Dragons character portrait: ' + member.race + ' ' + member.class + ' ' + member.name)}&seed=${member.id}`} alt={member.name} className="w-full h-full object-cover grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100" />
                                  </div>
                                  <div className="flex-1 min-w-0">
                                     <div className="text-white font-serif italic text-sm">{member.name}</div>
@@ -1291,7 +1470,7 @@ export default function App() {
                            >
                               <div className="flex gap-6 items-start">
                                  <div className="w-16 h-16 shrink-0 bg-dark-accent rounded-sm overflow-hidden border border-white/10 group-hover:border-gold/50 transition-colors">
-                                    <img src={`https://picsum.photos/seed/${char.id}/200/200`} alt={char.name} className="w-full h-full object-cover grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100" />
+                                    <img src={`/image?prompt=${encodeURIComponent('Dungeons and Dragons character portrait: ' + char.race + ' ' + char.class + ' ' + char.name)}&seed=${char.id}`} alt={char.name} className="w-full h-full object-cover grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100" />
                                  </div>
                                  <div className="flex-1 space-y-1">
                                     <h4 className="text-white font-serif italic text-lg leading-tight">{char.name}</h4>
@@ -1359,7 +1538,7 @@ export default function App() {
                 <div 
                   className="absolute inset-0 z-0 opacity-15 grayscale pointer-events-none"
                   style={{ 
-                    backgroundImage: `url(${currentRealm?.imageUrl || `https://picsum.photos/seed/${currentRealm?.id}/1000/1200`})`,
+                    backgroundImage: `url(${currentRealm?.imageUrl || `/image?prompt=${encodeURIComponent('Atmospheric D&D landscape for ' + currentRealm?.name)}&seed=${currentRealm?.id}-bg`})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                   }}
@@ -1372,7 +1551,7 @@ export default function App() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        src={`https://picsum.photos/seed/${encodeURIComponent(currentTurn.imagePrompt || 'dnd')}/800/1000`}
+                        src={`/image?prompt=${encodeURIComponent(currentTurn.imagePrompt || ('Dungeons and Dragons story scene: ' + currentTurn.story.slice(0, 50)))}&seed=story-${history.length}`}
                         alt="Scene illustration"
                         className="w-full h-full object-cover grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700"
                         referrerPolicy="no-referrer"
@@ -1390,7 +1569,14 @@ export default function App() {
                    <div className="bg-dark-card/80 backdrop-blur-sm p-4 subtle-border space-y-3">
                       <div className="flex justify-between items-center text-[10px] font-bold">
                         <span className="text-gold">PARTY STATUS</span>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
+                           <button 
+                            onClick={() => setStep('party-builder')}
+                            className="bg-white/5 p-1 rounded-sm text-gray-500 hover:text-gold transition-colors"
+                            title="Manage Roster"
+                           >
+                             <Zap size={10} />
+                           </button>
                            <span className="text-amber-500">G: {party.gold}</span>
                            <span className="text-emerald-500">R: {party.reputation}</span>
                         </div>
@@ -1500,7 +1686,7 @@ export default function App() {
                                   <div key={idx} className="group flex gap-3 items-start bg-black/20 p-2 rounded-sm border border-transparent hover:border-gold/20 transition-colors">
                                     <div className="w-12 h-12 shrink-0 bg-dark-accent rounded-sm overflow-hidden subtle-border">
                                       <img 
-                                        src={`https://picsum.photos/seed/${encodeURIComponent(item.imagePrompt)}/100/100`} 
+                                        src={`/image?prompt=${encodeURIComponent(item.imagePrompt || ('Dungeons and Dragons lore: ' + item.name))}&seed=${item.name}`} 
                                         alt={item.name}
                                         className="w-full h-full object-cover grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transition-all"
                                       />
@@ -1713,7 +1899,7 @@ export default function App() {
                 <div className="p-6 border-b border-white/5 flex justify-between items-center bg-dark-accent/50">
                    <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-dark-accent rounded-sm overflow-hidden border border-white/10">
-                         <img src={`https://picsum.photos/seed/${editingCharacter.id}/100/100`} alt={editingCharacter.name} className="w-full h-full object-cover" />
+                         <img src={`/image?prompt=${encodeURIComponent('Dungeons and Dragons character portrait: ' + editingCharacter.race + ' ' + editingCharacter.class + ' ' + editingCharacter.name)}&seed=${editingCharacter.id}`} alt={editingCharacter.name} className="w-full h-full object-cover" />
                       </div>
                       <div>
                          <h3 className="text-white font-serif italic text-xl">{editingCharacter.name}</h3>

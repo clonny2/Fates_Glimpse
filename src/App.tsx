@@ -11,8 +11,8 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Howl } from 'howler';
 
-import { REALMS, Realm, StoryStep, ChatMessage, ResearchData } from './types';
-import { researchRealm, generateStoryTurn, getLearnedRealms, generateCustomRealm, chatWithNPC, getMonsterTactics, analyzeLore, getStrategicInsight } from './services/geminiService';
+import { REALMS, Realm, StoryStep, ChatMessage, ResearchData, Character, Party } from './types';
+import { researchRealm, generateStoryTurn, getLearnedRealms, generateCustomRealm, chatWithNPC, getMonsterTactics, analyzeLore, getStrategicInsight, generateRandomCharacter } from './services/geminiService';
 import { DiceRoller } from './components/DiceRoller';
 
 function cn(...inputs: ClassValue[]) {
@@ -103,7 +103,9 @@ export default function App() {
   const [currentRealm, setCurrentRealm] = useState<Realm | null>(null);
   const [researchData, setResearchData] = useState<ResearchData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'splash' | 'selecting' | 'choice' | 'researching' | 'adventuring' | 'codex' | 'mapping'>('splash');
+  const [step, setStep] = useState<'splash' | 'selecting' | 'choice' | 'researching' | 'adventuring' | 'codex' | 'mapping' | 'party-builder'>('splash');
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [party, setParty] = useState<Party>({ members: [], gold: 100, sharedInventory: [], reputation: 0 });
   const [selectedRealmForChoice, setSelectedRealmForChoice] = useState<Realm | null>(null);
   const [mapSeed, setMapSeed] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
@@ -280,6 +282,10 @@ export default function App() {
       setLearnedRealms(data.learnedIds);
       setDiscoveries(data.discoveries);
     });
+
+    fetch('/api/characters').then(res => res.json()).then(data => {
+      if (Array.isArray(data)) setCharacters(data);
+    });
   }, []);
 
   const getMoodColor = (mood: string = '') => {
@@ -357,14 +363,7 @@ export default function App() {
         setDiscoveries(prev => ({ ...prev, [realm.id]: research.discovery }));
       }
       
-      setLoading(true);
-      console.log(`[DM Agent] Drafting prologue...`);
-      const turn = await generateStoryTurn([], realm.name, "Begin my odyssey");
-      console.log(`[DM Agent] Prologue complete.`);
-      setCurrentTurn(turn);
-      setHistory([{ role: 'assistant', content: turn.story }]);
-      
-      setStep('adventuring');
+      setStep('party-builder');
     } catch (error) {
       console.error("[Fatal Error] Research failure:", error);
       const msg = error instanceof Error ? error.message : "The research pod encountered a temporal distortion.";
@@ -373,6 +372,101 @@ export default function App() {
     } finally {
       clearInterval(interval);
       clearTimeout(slowTimer);
+      setLoading(false);
+    }
+  };
+
+  const handleCreateParty = () => {
+    setStep('party-builder');
+  };
+
+  const handleGoToAdventuring = async () => {
+    if (!currentRealm) return;
+    setLoading(true);
+    try {
+      const turn = await generateStoryTurn([], currentRealm.name, "Begin our odyssey", party);
+      setCurrentTurn(turn);
+      setHistory([{ role: 'assistant', content: turn.story }]);
+      setStep('adventuring');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleMemberInParty = (char: Character) => {
+    setParty(prev => {
+      const isMember = prev.members.some(m => m.id === char.id);
+      if (isMember) {
+        return { ...prev, members: prev.members.filter(m => m.id !== char.id) };
+      } else {
+        return { ...prev, members: [...prev.members, char] };
+      }
+    });
+  };
+
+  const saveNewCharacter = async (char: Character) => {
+    try {
+      await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(char)
+      });
+      setCharacters(prev => {
+        const idx = prev.findIndex(c => c.id === char.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = char;
+          return next;
+        }
+        return [...prev, char];
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteCharacter = async (id: string) => {
+    try {
+      await fetch(`/api/characters?id=${id}`, { method: 'DELETE' });
+      setCharacters(prev => prev.filter(c => c.id !== id));
+      setParty(prev => ({ ...prev, members: prev.members.filter(m => m.id !== id) }));
+      playSfx('hit');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const generateAndSaveRandomCharacter = async () => {
+    if (!currentRealm) return;
+    setLoading(true);
+    try {
+      const char = await generateRandomCharacter(currentRealm.name);
+      await saveNewCharacter(char);
+      playSfx('magic');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateFullRandomParty = async () => {
+    if (!currentRealm) return;
+    setLoading(true);
+    try {
+      const newChars = [];
+      for (let i = 0; i < 3; i++) {
+        const char = await generateRandomCharacter(currentRealm.name);
+        await saveNewCharacter(char);
+        newChars.push(char);
+      }
+      setParty(prev => ({ ...prev, members: newChars }));
+      playSfx('magic');
+    } catch (e) {
+      console.error(e);
+    } finally {
       setLoading(false);
     }
   };
@@ -437,7 +531,35 @@ export default function App() {
     setHistory(newHistory);
     
     try {
-      const turn = await generateStoryTurn(newHistory, currentRealm.name, action);
+      const turn = await generateStoryTurn(newHistory, currentRealm.name, action, party);
+      
+      // Apply party updates if any
+      if (turn.partyUpdates) {
+        setParty(prev => {
+          const next = { ...prev };
+          if (turn.partyUpdates.goldDelta) next.gold += turn.partyUpdates.goldDelta;
+          if (turn.partyUpdates.reputationDelta) next.reputation += turn.partyUpdates.reputationDelta;
+          
+          if (turn.partyUpdates.memberUpdates) {
+            next.members = next.members.map(m => {
+              const update = turn.partyUpdates.memberUpdates.find((u: any) => u.id === m.id);
+              if (update) {
+                const updatedMember = { ...m };
+                if (update.hpDelta) updatedMember.hp = Math.max(0, Math.min(updatedMember.maxHp, updatedMember.hp + update.hpDelta));
+                if (update.inventoryDelta) {
+                  updatedMember.inventory = [...updatedMember.inventory, ...update.inventoryDelta];
+                }
+                // Persist changed character back to server
+                saveNewCharacter(updatedMember);
+                return updatedMember;
+              }
+              return m;
+            });
+          }
+          return next;
+        });
+      }
+
       setCurrentTurn(turn);
       setHistory(prev => [...prev, { role: 'assistant', content: turn.story }]);
     } catch (error) {
@@ -793,17 +915,25 @@ export default function App() {
               exit={{ opacity: 0 }}
               className="flex flex-col space-y-8 py-8 flex-1"
             >
-              <div className="flex justify-between items-end border-b border-[#222] pb-6">
+              <div className="flex justify-between items-center border-b border-[#222] pb-6">
                 <div className="space-y-2">
                   <div className="text-[10px] uppercase tracking-[4px] text-emerald-400 font-bold">CODEX_ARCHIVE_SITE: {currentRealm.id}</div>
                   <h2 className="text-5xl font-serif text-white italic tracking-wide">{currentRealm.name}</h2>
                 </div>
-                <button 
-                  onClick={() => setStep('selecting')}
-                  className="bg-dark-card border border-[#333] hover:border-gold px-6 py-2 text-[10px] uppercase tracking-widest text-gray-400 hover:text-white transition-all flex items-center gap-2"
-                >
-                  Return to Matrix <RefreshCcw size={12} />
-                </button>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => setStep('party-builder')}
+                    className="px-6 py-2 bg-gold text-black text-[10px] uppercase font-black tracking-widest hover:bg-white transition-all"
+                  >
+                    Assemble Party
+                  </button>
+                  <button 
+                    onClick={() => setStep('selecting')}
+                    className="px-6 py-2 bg-white/5 text-gray-400 text-[10px] uppercase font-black tracking-widest hover:text-white transition-all border border-white/10"
+                  >
+                    Back to Selection
+                  </button>
+                </div>
               </div>
 
               <div className="relative">
@@ -1051,6 +1181,157 @@ export default function App() {
             </motion.div>
           )}
 
+          {step === 'party-builder' && currentRealm && (
+            <motion.div
+              key="party-builder"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="flex flex-col space-y-12 py-8 flex-1"
+            >
+              <div className="text-center space-y-4">
+                 <div className="text-[10px] uppercase tracking-[4px] text-gold font-bold">ARCANE_ASSEMBLY_CHAMBER</div>
+                 <h2 className="text-4xl font-serif text-white italic tracking-wide">Prepare for the Journey</h2>
+                 <p className="text-gray-500 text-sm italic">Recruit legendary heroes from the archives or summon new ones from the ether.</p>
+              </div>
+
+              <div className="grid lg:grid-cols-12 gap-12">
+                 {/* Current Party */}
+                 <div className="lg:col-span-4 space-y-6">
+                    <div className="subtle-border bg-dark-card p-6 space-y-6">
+                       <div className="flex justify-between items-center">
+                          <h3 className="text-gold font-bold uppercase tracking-widest text-[10px]">Current Party</h3>
+                          <span className="text-gray-500 text-[9px] uppercase font-mono">{party.members.length} / 4 Members</span>
+                       </div>
+                       <div className="space-y-4 min-h-[300px]">
+                          {party.members.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center space-y-4 pt-12 grayscale opacity-40">
+                               <RefreshCcw size={32} className="text-gray-600" />
+                               <p className="text-[10px] uppercase tracking-widest text-gray-500">Party matrix empty. Select heroes to begin.</p>
+                            </div>
+                          ) : (
+                            party.members.map(member => (
+                              <motion.div 
+                                layout
+                                key={member.id}
+                                className="group relative bg-white/5 p-4 subtle-border flex gap-4 items-center"
+                              >
+                                 <div className="w-12 h-12 shrink-0 bg-dark-accent rounded-sm overflow-hidden border border-white/10">
+                                    <img src={`https://picsum.photos/seed/${member.id}/100/100`} alt={member.name} className="w-full h-full object-cover grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100" />
+                                 </div>
+                                 <div className="flex-1 min-w-0">
+                                    <div className="text-white font-serif italic text-sm">{member.name}</div>
+                                    <div className="text-[9px] text-gold/60 uppercase tracking-tighter">{member.race} {member.class} • Lvl {member.level}</div>
+                                 </div>
+                                 <button 
+                                  onClick={() => toggleMemberInParty(member)}
+                                  className="text-gray-600 hover:text-red-500 transition-colors"
+                                 >
+                                    <RefreshCcw size={14} className="rotate-45" />
+                                 </button>
+                              </motion.div>
+                            ))
+                          )}
+                       </div>
+                       <div className="pt-6 border-t border-white/5 space-y-4">
+                          <div className="flex justify-between text-[10px] font-mono tracking-widest uppercase">
+                             <span className="text-gray-500">Starting Gold</span>
+                             <span className="text-amber-500">100 GP</span>
+                          </div>
+                          <button 
+                            onClick={handleGoToAdventuring}
+                            disabled={party.members.length === 0 || loading}
+                            className="w-full bg-gold text-black py-3 text-[10px] uppercase font-black tracking-[4px] hover:bg-white transition-all disabled:opacity-20 flex items-center justify-center gap-2"
+                          >
+                             {loading ? <RefreshCcw size={14} className="animate-spin" /> : 'Embark on Odyssey'}
+                          </button>
+                       </div>
+                    </div>
+                    
+                    <button 
+                      onClick={generateFullRandomParty}
+                      disabled={loading}
+                      className="w-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 py-3 text-[9px] uppercase tracking-widest font-bold hover:bg-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                    >
+                       <Zap size={10} /> Quick-Summon Random Party
+                    </button>
+                 </div>
+
+                 {/* Available Characters */}
+                 <div className="lg:col-span-8 space-y-6">
+                    <div className="flex justify-between items-end">
+                       <h3 className="text-gold font-bold uppercase tracking-widest text-[10px]">Archived Explorers</h3>
+                       <button 
+                        onClick={generateAndSaveRandomCharacter}
+                        disabled={loading}
+                        className="text-gold hover:text-white transition-colors flex items-center gap-2 text-[10px] uppercase tracking-widest underline underline-offset-4"
+                       >
+                          {loading ? <RefreshCcw size={10} className="animate-spin" /> : <Sparkles size={10} />} Summon Wanderer
+                       </button>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                       {characters.map(char => {
+                         const isMember = party.members.some(m => m.id === char.id);
+                         return (
+                           <div 
+                            key={char.id}
+                            className={cn(
+                              "relative group bg-dark-card subtle-border p-6 transition-all",
+                              isMember ? "border-emerald-500/50 bg-emerald-500/5" : "hover:border-gold/30"
+                            )}
+                           >
+                              <div className="flex gap-6 items-start">
+                                 <div className="w-16 h-16 shrink-0 bg-dark-accent rounded-sm overflow-hidden border border-white/10 group-hover:border-gold/50 transition-colors">
+                                    <img src={`https://picsum.photos/seed/${char.id}/200/200`} alt={char.name} className="w-full h-full object-cover grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100" />
+                                 </div>
+                                 <div className="flex-1 space-y-1">
+                                    <h4 className="text-white font-serif italic text-lg leading-tight">{char.name}</h4>
+                                    <div className="text-[10px] text-gold uppercase tracking-widest font-black opacity-60">{char.race} {char.class}</div>
+                                    <p className="text-[10px] text-gray-500 italic line-clamp-2 leading-relaxed">{char.description}</p>
+                                 </div>
+                              </div>
+                              <div className="flex items-center justify-between mt-6 pt-4 border-t border-white/5">
+                                 <div className="flex gap-1">
+                                    {char.inventory.slice(0, 2).map((item, i) => (
+                                      <span key={i} className="text-[8px] bg-white/5 border border-white/5 px-1.5 py-0.5 rounded-sm text-gray-400">{item}</span>
+                                    ))}
+                                 </div>
+                                 <div className="flex items-center gap-3">
+                                   <button 
+                                      onClick={() => deleteCharacter(char.id)}
+                                      className="p-1.5 text-gray-600 hover:text-red-500 transition-colors"
+                                      title="Vanish from matrix"
+                                   >
+                                      <RefreshCcw size={12} className="rotate-45" />
+                                   </button>
+                                   <button 
+                                    onClick={() => toggleMemberInParty(char)}
+                                    className={cn(
+                                      "px-4 py-1.5 text-[9px] uppercase font-bold tracking-widest transition-all",
+                                      isMember 
+                                        ? "bg-emerald-500 text-black hover:bg-red-500" 
+                                        : "bg-white/5 text-gray-400 hover:bg-gold hover:text-black border border-white/10"
+                                    )}
+                                   >
+                                      {isMember ? 'Joined' : 'Recruit'}
+                                   </button>
+                                 </div>
+                              </div>
+                           </div>
+                         );
+                       })}
+                       {characters.length === 0 && !loading && (
+                         <div className="col-span-2 py-12 text-center text-gray-600 italic text-sm">
+                           No archived explorers found. Summon your first wanderer to begin.
+                         </div>
+                       )}
+                    </div>
+                 </div>
+              </div>
+            </motion.div>
+          )}
+
           {step === 'adventuring' && currentTurn && (
             <motion.div
               key="adventuring"
@@ -1091,6 +1372,41 @@ export default function App() {
                   <div className="space-y-6 px-1">
                     <div className="text-[10px] uppercase tracking-[2px] text-gray-600 font-bold">Active Agents</div>
                     
+                   <div className="bg-dark-card/80 backdrop-blur-sm p-4 subtle-border space-y-3">
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-gold">PARTY STATUS</span>
+                        <div className="flex gap-2">
+                           <span className="text-amber-500">G: {party.gold}</span>
+                           <span className="text-emerald-500">R: {party.reputation}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-4 pt-2">
+                        {party.members.map(member => (
+                          <div key={member.id} className="space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[11px] text-white font-serif italic">{member.name}</span>
+                              <span className="text-[9px] text-gray-500">{member.hp}/{member.maxHp} HP</span>
+                            </div>
+                            <div className="h-[2px] bg-white/5 w-full rounded-full overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${(member.hp / member.maxHp) * 100}%` }}
+                                className={cn(
+                                  "h-full transition-all duration-500",
+                                  (member.hp / member.maxHp) < 0.3 ? "bg-red-500" : "bg-emerald-500"
+                                )}
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                               {member.inventory.slice(0, 3).map((item, i) => (
+                                 <span key={i} className="text-[7px] bg-white/5 px-1 py-0.5 rounded-sm text-gray-400 border border-white/5">{item}</span>
+                               ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="bg-dark-card/80 backdrop-blur-sm p-4 subtle-border space-y-3">
                       <div className="flex justify-between items-center text-[10px] font-bold">
                         <span className="text-gold">THE ARCHIVIST</span>

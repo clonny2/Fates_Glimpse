@@ -114,22 +114,43 @@ export async function researchRealm(realmId: string, realmName: string): Promise
   }
 }
 
-export async function generateStoryTurn(history: ChatMessage[], currentRealmName: string, userInput: string) {
+export async function generateStoryTurn(history: ChatMessage[], currentRealmName: string, userInput: string, party?: any) {
   try {
     console.log(`[Gemini DM] Processing turn for ${currentRealmName}...`);
+    const partyContext = party ? `\nCURRENT PARTY STATUS: ${JSON.stringify(party)}. Track HP changes, items found/lost, and narrative consequences for members.` : '';
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       config: {
         responseMimeType: "application/json",
-        systemInstruction: `You are a legendary Dungeon Master in ${currentRealmName}. 
-        Return ONLY JSON: { "story": string, "musicMood": string, "imagePrompt": string, "options": string[] }`,
+        systemInstruction: `You are a legendary Dungeon Master in ${currentRealmName}.${partyContext}
+        Return ONLY JSON: { "story": string, "musicMood": string, "imagePrompt": string, "options": string[], "partyUpdates"?: { "goldDelta"?: number, "reputationDelta"?: number, "memberUpdates"?: { "id": string, "hpDelta"?: number, "inventoryDelta"?: string[] }[] } }`,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
             story: { type: Type.STRING },
             musicMood: { type: Type.STRING },
             imagePrompt: { type: Type.STRING },
-            options: { type: Type.ARRAY, items: { type: Type.STRING } }
+            options: { type: Type.ARRAY, items: { type: Type.STRING } },
+            partyUpdates: {
+              type: Type.OBJECT,
+              properties: {
+                goldDelta: { type: Type.NUMBER },
+                reputationDelta: { type: Type.NUMBER },
+                memberUpdates: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      id: { type: Type.STRING },
+                      hpDelta: { type: Type.NUMBER },
+                      inventoryDelta: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    },
+                    required: ["id"]
+                  }
+                }
+              }
+            }
           },
           required: ["story", "musicMood", "imagePrompt", "options"]
         }
@@ -145,6 +166,39 @@ export async function generateStoryTurn(history: ChatMessage[], currentRealmName
     return data;
   } catch (e) {
     console.error("Gemini DM Error:", e);
+    throw e;
+  }
+}
+
+export async function generateRandomCharacter(realmName: string) {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      config: {
+        responseMimeType: "application/json",
+        systemInstruction: `Create a unique D&D character for the realm: ${realmName}.`,
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.STRING },
+            name: { type: Type.STRING },
+            race: { type: Type.STRING },
+            class: { type: Type.STRING },
+            level: { type: Type.NUMBER },
+            hp: { type: Type.NUMBER },
+            maxHp: { type: Type.NUMBER },
+            inventory: { type: Type.ARRAY, items: { type: Type.STRING } },
+            description: { type: Type.STRING },
+            imagePrompt: { type: Type.STRING }
+          },
+          required: ["id", "name", "race", "class", "level", "hp", "maxHp", "inventory", "description", "imagePrompt"]
+        }
+      },
+      contents: [{ role: "user", parts: [{ text: "Generate a legendary adventurer." }] }]
+    });
+    return extractJson(response.text || '{}');
+  } catch (e) {
+    console.error("Character Gen Error:", e);
     throw e;
   }
 }

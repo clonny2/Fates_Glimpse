@@ -127,6 +127,26 @@ export const KEMET: Realm = {
   themeColor: 'amber'
 };
 
+export type Character = {
+  id: string;
+  name: string;
+  race: string;
+  class: string;
+  level: number;
+  hp: number;
+  maxHp: number;
+  inventory: string[];
+  description: string;
+  imagePrompt: string;
+};
+
+export type Party = {
+  members: Character[];
+  gold: number;
+  sharedInventory: string[];
+  reputation: number;
+};
+
 export const REALMS: Realm[] = [
   FORGOTTEN_REALMS, 
   EBERRON, 

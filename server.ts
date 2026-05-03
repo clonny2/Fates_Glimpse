@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const KNOWLEDGE_DIR = path.join(process.cwd(), "knowledge");
+const CHARACTERS_DIR = path.join(process.cwd(), "characters");
 
 async function ensureDir(dir: string) {
   try {
@@ -22,6 +23,45 @@ async function startServer() {
 
   app.use(express.json());
   await ensureDir(KNOWLEDGE_DIR);
+  await ensureDir(CHARACTERS_DIR);
+
+  // Character APIs
+  app.get("/api/characters", async (req, res) => {
+    try {
+      const files = await fs.readdir(CHARACTERS_DIR);
+      const characters = [];
+      for (const file of files) {
+        if (file.endsWith(".json")) {
+          const data = await fs.readFile(path.join(CHARACTERS_DIR, file), "utf-8");
+          characters.push(JSON.parse(data));
+        }
+      }
+      res.json(characters);
+    } catch (error) {
+      res.json([]);
+    }
+  });
+
+  app.post("/api/characters", async (req, res) => {
+    const character = req.body;
+    if (!character.id) return res.status(400).json({ error: "Missing id" });
+    try {
+      await fs.writeFile(path.join(CHARACTERS_DIR, `${character.id}.json`), JSON.stringify(character, null, 2));
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to save character" });
+    }
+  });
+
+  app.delete("/api/characters/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+      await fs.unlink(path.join(CHARACTERS_DIR, `${id}.json`));
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete character" });
+    }
+  });
 
   // Storage APIs only - Gemini is handle on the frontend as per skill instructions
   app.get("/api/learned", async (req, res) => {

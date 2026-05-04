@@ -126,7 +126,9 @@ export default function App() {
   const sfxRef = useRef<Record<string, Howl>>({});
   const locationAmbienceRef = useRef<Howl | null>(null);
   const currentTrackUrlRef = useRef<string>('');
+  const currentAmbienceUrlRef = useRef<string>('');
 
+  const [combatLogs, setCombatLogs] = useState<{ id: string, text: string, type: 'hit' | 'miss' | 'crit' | 'damage' | 'status' }[]>([]);
   const [specialtyResult, setSpecialtyResult] = useState<{ type: string, content: string, name: string, item?: any } | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [npcChatHistory, setNpcChatHistory] = useState<ChatMessage[]>([]);
@@ -178,53 +180,73 @@ export default function App() {
     };
   }, []);
 
-  // Location-based dynamic sound triggers
   useEffect(() => {
-    if (!audioEnabled || !currentTurn?.story) return;
+    if (!audioEnabled || !currentTurn?.story) {
+      if (locationAmbienceRef.current) {
+        locationAmbienceRef.current.fade(locationAmbienceRef.current.volume(), 0, 2000).once('fade', () => {
+          locationAmbienceRef.current?.stop();
+        });
+      }
+      return;
+    }
 
     const story = currentTurn.story.toLowerCase();
     let newAmbienceUrl = '';
 
-    if (story.includes('forest') || story.includes('woods') || story.includes('jungle')) {
+    if (story.includes('forest') || story.includes('woods') || story.includes('jungle') || story.includes('trees')) {
       newAmbienceUrl = 'https://cdn.pixabay.com/audio/2022/03/13/audio_73e72844c2.mp3'; // Forest birds
-    } else if (story.includes('cave') || story.includes('dungeon') || story.includes('underground')) {
+    } else if (story.includes('cave') || story.includes('dungeon') || story.includes('underground') || story.includes('dark')) {
       newAmbienceUrl = 'https://cdn.pixabay.com/audio/2022/04/27/audio_e6ef82912a.mp3'; // Drip/Echo
-    } else if (story.includes('water') || story.includes('river') || story.includes('ocean') || story.includes('sea')) {
+    } else if (story.includes('water') || story.includes('river') || story.includes('ocean') || story.includes('sea') || story.includes('rain')) {
       newAmbienceUrl = 'https://cdn.pixabay.com/audio/2021/11/24/audio_9ea797f374.mp3'; // Waves/Water
-    } else if (story.includes('fire') || story.includes('volcano') || story.includes('burning')) {
-      newAmbienceUrl = 'https://cdn.pixabay.com/audio/2022/03/15/audio_783cf3a90c.mp3'; // Crackle (placeholder)
+    } else if (story.includes('fire') || story.includes('volcano') || story.includes('burning') || story.includes('heat')) {
+      newAmbienceUrl = 'https://cdn.pixabay.com/audio/2022/12/12/audio_7d2f95447a.mp3'; // Crackle
+    } else if (story.includes('wind') || story.includes('mountain') || story.includes('peaks')) {
+      newAmbienceUrl = 'https://cdn.pixabay.com/audio/2022/01/18/audio_2269a9d263.mp3'; // Wind
+    } else if (story.includes('magic') || story.includes('ethereal') || story.includes('portal')) {
+      newAmbienceUrl = 'https://cdn.pixabay.com/audio/2023/10/01/audio_731427a13d.mp3'; // Ethereal
     }
 
     if (newAmbienceUrl) {
       if (locationAmbienceRef.current) {
-        // Only change if different
-        // @ts-ignore - Howler src is private but we can check if it's the same
-        if (locationAmbienceRef.current._src !== newAmbienceUrl) {
-          locationAmbienceRef.current.fade(0.3, 0, 1000).once('fade', () => {
-            locationAmbienceRef.current?.stop();
-            locationAmbienceRef.current = new Howl({ src: [newAmbienceUrl], loop: true, volume: 0 });
-            locationAmbienceRef.current.play();
-            locationAmbienceRef.current.fade(0, 0.3, 1000);
+        if (currentAmbienceUrlRef.current !== newAmbienceUrl) {
+          const oldAmb = locationAmbienceRef.current;
+          currentAmbienceUrlRef.current = newAmbienceUrl;
+          oldAmb.fade(oldAmb.volume(), 0, 2000);
+          
+          const newAmb = new Howl({ src: [newAmbienceUrl], loop: true, volume: 0, html5: true });
+          locationAmbienceRef.current = newAmb;
+          newAmb.play();
+          newAmb.fade(0, 0.2, 2000);
+          
+          oldAmb.once('fade', () => {
+             oldAmb.stop();
+             oldAmb.unload();
           });
+        } else if (!locationAmbienceRef.current.playing()) {
+          locationAmbienceRef.current.play();
         }
       } else {
-        locationAmbienceRef.current = new Howl({ src: [newAmbienceUrl], loop: true, volume: 0.3 });
+        currentAmbienceUrlRef.current = newAmbienceUrl;
+        locationAmbienceRef.current = new Howl({ src: [newAmbienceUrl], loop: true, volume: 0.2, html5: true });
         locationAmbienceRef.current.play();
       }
-    } else if (locationAmbienceRef.current) {
-      locationAmbienceRef.current.fade(0.3, 0, 2000).once('fade', () => {
-        locationAmbienceRef.current?.stop();
-        locationAmbienceRef.current = null;
-      });
     }
   }, [currentTurn?.story, audioEnabled]);
 
+  const addCombatLog = (text: string, type: any = 'status') => {
+    setCombatLogs(prev => [{ id: Math.random().toString(36), text, type }, ...prev].slice(0, 50));
+  };
+
   const playSfx = (type: string) => {
     if (!audioEnabled || !sfxRef.current[type]) {
-      console.log("[SFX] Skip (Disabled/Missing):", type);
       return;
     }
-    console.log("[SFX] Play:", type);
+    // Attempt resume on every play just in case
+    if (typeof Howler !== 'undefined' && Howler.ctx && Howler.ctx.state === 'suspended') {
+      Howler.ctx.resume();
+    }
+    sfxRef.current[type].stop(); // Stop if already playing
     sfxRef.current[type].play();
   };
 
@@ -280,19 +302,23 @@ export default function App() {
 
       if (mainTrackRef.current) {
         if (currentTrackUrlRef.current !== trackUrl) {
-          console.log("[Bard] Changing track to:", trackUrl);
+          const oldTrack = mainTrackRef.current;
           currentTrackUrlRef.current = trackUrl;
-          mainTrackRef.current.fade(0.25, 0, 2000).once('fade', () => {
-            mainTrackRef.current?.stop();
-            mainTrackRef.current = new Howl({ src: [trackUrl], loop: true, volume: 0, html5: true });
-            mainTrackRef.current.play();
-            mainTrackRef.current.fade(0, 0.25, 2000);
+          oldTrack.fade(oldTrack.volume(), 0, 2000);
+          
+          const newTrack = new Howl({ src: [trackUrl], loop: true, volume: 0, html5: true });
+          mainTrackRef.current = newTrack;
+          newTrack.play();
+          newTrack.fade(0, 0.25, 2000);
+          
+          oldTrack.once('fade', () => {
+            oldTrack.stop();
+            oldTrack.unload();
           });
         } else if (!mainTrackRef.current.playing()) {
           mainTrackRef.current.play();
         }
       } else {
-        console.log("[Bard] Initializing main track:", trackUrl);
         currentTrackUrlRef.current = trackUrl;
         mainTrackRef.current = new Howl({ src: [trackUrl], loop: true, volume: 0.25, html5: true });
         mainTrackRef.current.play();
@@ -411,7 +437,7 @@ export default function App() {
     if (!currentRealm) return;
     setLoading(true);
     try {
-      const turn = await generateStoryTurn([], currentRealm.name, "Begin our odyssey", party);
+      const turn = await generateStoryTurn([], currentRealm.name, "Begin our odyssey", party, researchData);
       setCurrentTurn(turn);
       setHistory([{ role: 'assistant', content: turn.story }]);
       setStep('adventuring');
@@ -443,10 +469,12 @@ export default function App() {
       setCharacters(prev => {
         const idx = prev.findIndex(c => c.id === char.id);
         if (idx >= 0) {
+          addCombatLog(`Roster Synchronized: ${char.name}`, 'status');
           const next = [...prev];
           next[idx] = char;
           return next;
         }
+        addCombatLog(`New Signature Detected: ${char.name} registered.`, 'crit');
         return [...prev, char];
       });
       setParty(prev => {
@@ -549,18 +577,24 @@ export default function App() {
   const handleAction = async (action: string) => {
     if (!currentRealm) return;
     
+    addCombatLog(`Initiating Action: ${action}`, 'status');
+
     // Thematic Audio Triggers
     const lowerAction = action.toLowerCase();
     if (lowerAction.includes('attack') || lowerAction.includes('fight') || lowerAction.includes('sword') || lowerAction.includes('strike')) {
       playSfx('sword');
+      addCombatLog("Engaging tactical combat protocols.", 'damage');
     } else if (lowerAction.includes('block') || lowerAction.includes('defend') || lowerAction.includes('shield') || lowerAction.includes('parry')) {
       playSfx('block');
+      addCombatLog("Defensive parameters established.", 'status');
     } else if (lowerAction.includes('hit') || lowerAction.includes('damage') || lowerAction.includes('slash')) {
       playSfx('hit');
     } else if (lowerAction.includes('miss') || lowerAction.includes('dodge')) {
       playSfx('miss');
+      addCombatLog("Target evasion detected.", 'miss');
     } else if (lowerAction.includes('cast') || lowerAction.includes('magic') || lowerAction.includes('spell') || lowerAction.includes('incantation')) {
       playSfx('magic');
+      addCombatLog("Arcane energy spike detected.", 'crit');
     } else if (lowerAction.includes('open') || lowerAction.includes('door') || lowerAction.includes('enter') || lowerAction.includes('gate')) {
       playSfx('door');
     } else if (lowerAction.includes('walk') || lowerAction.includes('move') || lowerAction.includes('travel')) {
@@ -576,7 +610,7 @@ export default function App() {
     setHistory(newHistory);
     
     try {
-      const turn = await generateStoryTurn(newHistory, currentRealm.name, action, party);
+      const turn = await generateStoryTurn(newHistory, currentRealm.name, action, party, researchData);
       
       // Apply party updates if any
       if (turn.partyUpdates) {
@@ -692,11 +726,20 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-[#0d0b09]">
       {/* Background Ambience Layers */}
-      <div className="absolute inset-0 z-0 opacity-40 pointer-events-none">
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <img 
-          src={`/image?prompt=${encodeURIComponent('Dungeons and Dragons legendary landscape concept art, cinematic lighting, high fantasy, epic scale, ' + (currentRealm?.name || 'mythic realm'))}&seed=global-bg-seed&width=1920&height=1080`} 
+          src={`/image?prompt=${encodeURIComponent('Epic Dungeons and Dragons fantasy world map, ancient parchment style, detailed terrain, mystical atmosphere, high quality, ' + (currentRealm?.name || 'epic realm'))}&seed=global-bg-dnd`} 
+          className="w-full h-full object-cover opacity-30 grayscale mix-blend-soft-light scale-105"
+          alt="Parchement Background"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0d0b09]/20 via-[#0d0b09]/60 to-[#0d0b09]" />
+      </div>
+      <div className="absolute inset-0 z-0 opacity-10 pointer-events-none mix-blend-overlay">
+        <img 
+          src={`/image?prompt=${encodeURIComponent('Nebulous ethereal magic patterns, cosmic dust, mystical particles, high fantasy atmosphere')}&seed=magic-ambience`} 
           className="w-full h-full object-cover"
-          alt="Ancient realm background"
+          alt="Magic Ambience"
           referrerPolicy="no-referrer"
         />
       </div>
@@ -1321,6 +1364,31 @@ export default function App() {
                         {monster.description}
                       </p>
                     </div>
+
+                    {monster.aiProfile && (
+                      <div className="space-y-3 pt-4 border-t border-white/5">
+                        <div className="flex items-center gap-2">
+                          <Zap size={10} className="text-cyan-400" />
+                          <span className="text-[10px] uppercase font-black text-cyan-400 tracking-[2px]">Behavior: {monster.aiProfile.behavior}</span>
+                        </div>
+                        {monster.aiProfile.specialAbility && (
+                          <div className="text-[10px] text-gray-400 bg-cyan-500/5 p-3 rounded-sm border border-cyan-500/10">
+                            <div className="text-gold font-bold uppercase tracking-widest mb-1 flex justify-between">
+                              <span>{monster.aiProfile.specialAbility.name}</span>
+                              <span className="text-[8px] opacity-50">Special</span>
+                            </div>
+                            <p className="text-[11px] leading-relaxed italic border-l border-gold/20 pl-2">"{monster.aiProfile.specialAbility.effect}"</p>
+                            <div className="mt-2 text-[8px] opacity-70 uppercase tracking-tighter">Trigger: {monster.aiProfile.specialAbility.trigger}</div>
+                          </div>
+                        )}
+                        {monster.aiProfile.fleeCondition && (
+                          <div className="text-[9px] text-red-400/60 uppercase tracking-widest font-mono">
+                             ◈ Sustenance Flee Condition: {monster.aiProfile.fleeCondition}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <button 
                       onClick={() => {
                         playSfx('paper');
@@ -1715,19 +1783,52 @@ export default function App() {
                     </div>
                   </div>
                   
-                    <DiceRoller />
+                    <DiceRoller onRoll={(val, type, crit, botch) => {
+                      const msg = crit ? `Critical Success! [${val}] on d${type}` : 
+                                  botch ? `Fumble! [${val}] on d${type}` : 
+                                  `Action resolved: ${val} on d${type}`;
+                      addCombatLog(msg, crit ? 'crit' : botch ? 'damage' : 'status');
+                      if (crit) playSfx('magic');
+                      if (botch) playSfx('miss');
+                      if (!crit && !botch) playSfx('roll');
+                    }} />
                   </div>
                 </div>
               </div>
 
               {/* Right Column: Narrative & Interaction */}
-              <div className="lg:col-span-9 flex flex-col space-y-8 h-full">
-                <div className="flex-1 bg-dark-surface/40 backdrop-blur-sm narrative-accent p-12 overflow-y-auto min-h-[400px]">
+              <div className="lg:col-span-9 flex flex-col space-y-8 h-full relative">
+                <div className="flex-1 bg-dark-surface/40 backdrop-blur-sm narrative-accent p-12 overflow-y-auto min-h-[400px] relative group">
                   <div className="text-[10px] text-gold uppercase tracking-[4px] mb-8 font-bold opacity-60">CHRONICLE_ENTRY_LOG</div>
                   <div className="prose max-w-none">
                     <ReactMarkdown>
                       {currentTurn.story}
                     </ReactMarkdown>
+                  </div>
+
+                  {/* Combat/System Log Overlay */}
+                  <div className="absolute bottom-6 right-6 w-72 pointer-events-none flex flex-col gap-1 overflow-hidden pointer-events-none bg-black/20 p-4 rounded-sm border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="text-[8px] text-gray-600 uppercase tracking-widest mb-2">Tactical Overlay.log</div>
+                    <AnimatePresence initial={false}>
+                      {combatLogs.slice(0, 5).map((log) => (
+                        <motion.div
+                          key={log.id}
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0 }}
+                          className={cn(
+                            "text-[10px] font-mono px-2 py-1 rounded bg-black/40 backdrop-blur-sm border-l-2",
+                            log.type === 'hit' && "border-emerald-500 text-emerald-400",
+                            log.type === 'miss' && "border-white/10 text-gray-500",
+                            log.type === 'crit' && "border-gold text-gold font-bold",
+                            log.type === 'damage' && "border-red-500 text-red-100",
+                            log.type === 'status' && "border-cyan-500 text-cyan-400"
+                          )}
+                        >
+                          {log.text}
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
                   </div>
 
                   {loading && (

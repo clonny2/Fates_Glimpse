@@ -86,7 +86,11 @@ export async function researchRealm(realmId: string, realmName: string): Promise
       config: {
         responseMimeType: "application/json",
         systemInstruction: `Act as a DnD Research Agent. Provide deep lore for ${realmName}. 
-        Return ONLY valid JSON with keys: summary, discovery, lands, npcs, monsters, artifacts.`,
+        Return ONLY valid JSON with keys: summary, discovery, lands, npcs, monsters, artifacts.
+        For monsters, EXPLICITLY include an 'aiProfile' with:
+        - behavior: How they act in combat (e.g., 'Target casters', 'Swarm weakest').
+        - fleeCondition: When they run away (e.g., 'Low HP', 'Leader dies').
+        - specialAbility: { name, trigger, effect }.`,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -94,7 +98,32 @@ export async function researchRealm(realmId: string, realmName: string): Promise
             discovery: { type: Type.STRING },
             lands: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, description: { type: Type.STRING }, imagePrompt: { type: Type.STRING } } } },
             npcs: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, description: { type: Type.STRING }, imagePrompt: { type: Type.STRING } } } },
-            monsters: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, description: { type: Type.STRING }, imagePrompt: { type: Type.STRING } } } },
+            monsters: { 
+              type: Type.ARRAY, 
+              items: { 
+                type: Type.OBJECT, 
+                properties: { 
+                  name: { type: Type.STRING }, 
+                  description: { type: Type.STRING }, 
+                  imagePrompt: { type: Type.STRING },
+                  aiProfile: {
+                    type: Type.OBJECT,
+                    properties: {
+                      behavior: { type: Type.STRING },
+                      fleeCondition: { type: Type.STRING },
+                      specialAbility: {
+                        type: Type.OBJECT,
+                        properties: {
+                          name: { type: Type.STRING },
+                          trigger: { type: Type.STRING },
+                          effect: { type: Type.STRING }
+                        }
+                      }
+                    }
+                  }
+                } 
+              } 
+            },
             artifacts: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, description: { type: Type.STRING }, imagePrompt: { type: Type.STRING } } } }
           },
           required: ["summary", "discovery", "lands", "npcs", "monsters", "artifacts"]
@@ -114,16 +143,23 @@ export async function researchRealm(realmId: string, realmName: string): Promise
   }
 }
 
-export async function generateStoryTurn(history: ChatMessage[], currentRealmName: string, userInput: string, party?: any) {
+export async function generateStoryTurn(history: ChatMessage[], currentRealmName: string, userInput: string, party?: any, researchData?: ResearchData) {
   try {
     console.log(`[Gemini DM] Processing turn for ${currentRealmName}...`);
     const partyContext = party ? `\nCURRENT PARTY STATUS: ${JSON.stringify(party)}. Track HP changes, items found/lost, and narrative consequences for members.` : '';
+    const realmLore = researchData ? `\nREALM KNOWLEDGE: Use these entities if relevant. Monsters MUST follow their aiProfile in combat: ${JSON.stringify(researchData.monsters)}` : '';
     
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       config: {
         responseMimeType: "application/json",
-        systemInstruction: `You are a legendary Dungeon Master in ${currentRealmName}.${partyContext}
+        systemInstruction: `You are a legendary Dungeon Master in ${currentRealmName}.${partyContext}${realmLore}
+        
+        COMBAT RULES:
+        - When an encounter occurs, refer to the Monster AI Profile.
+        - Describe their specific behavior: do they target spellcasters? Do they flee?
+        - If a 'specialAbility' trigger is met, describe it happening vividly.
+        
         Return ONLY JSON: { "story": string, "musicMood": string, "imagePrompt": string, "options": string[], "partyUpdates"?: { "goldDelta"?: number, "reputationDelta"?: number, "memberUpdates"?: { "id": string, "hpDelta"?: number, "inventoryDelta"?: string[] }[] } }`,
         responseSchema: {
           type: Type.OBJECT,

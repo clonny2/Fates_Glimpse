@@ -19,7 +19,11 @@ interface RollResult {
   timestamp: number;
 }
 
-export function DiceRoller() {
+interface DiceRollerProps {
+  onRoll?: (val: number, type: number, isCrit: boolean, isBotch: boolean) => void;
+}
+
+export function DiceRoller({ onRoll }: DiceRollerProps) {
   const [history, setHistory] = useState<RollResult[]>([]);
   const [isRolling, setIsRolling] = useState(false);
   const [lastRoll, setLastRoll] = useState<RollResult | null>(null);
@@ -29,7 +33,7 @@ export function DiceRoller() {
     // Play rattle sound using Howler
     const rattleSound = new Howl({
       src: ['https://cdn.pixabay.com/audio/2021/08/04/audio_333a41b59c.mp3'],
-      volume: 0.5
+      volume: 0.8
     });
     rattleSound.play();
     
@@ -42,12 +46,12 @@ export function DiceRoller() {
       if (isCriticalSuccess) {
         new Howl({ 
           src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_c8de304247.mp3'], 
-          volume: 0.7 
+          volume: 0.8 
         }).play();
       } else if (isCriticalFail) {
         new Howl({ 
           src: ['https://cdn.pixabay.com/audio/2022/03/24/audio_dc395616e4.mp3'], 
-          volume: 0.6 
+          volume: 0.8 
         }).play();
       }
 
@@ -61,6 +65,10 @@ export function DiceRoller() {
       setLastRoll(newRoll);
       setHistory((prev) => [newRoll, ...prev].slice(0, 10));
       setIsRolling(false);
+      
+      if (onRoll) {
+        onRoll(value, type, isCriticalSuccess, isCriticalFail);
+      }
     }, 800);
   };
 

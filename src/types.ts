@@ -10,10 +10,21 @@ export type Realm = {
   isCustom?: boolean;
 };
 
+export type MonsterAIProfile = {
+  behavior: string;
+  fleeCondition?: string;
+  specialAbility?: {
+    name: string;
+    trigger: string;
+    effect: string;
+  };
+};
+
 export type ResearchEntity = {
   name: string;
   description: string;
   imagePrompt: string;
+  aiProfile?: MonsterAIProfile;
 };
 
 export type ResearchData = {

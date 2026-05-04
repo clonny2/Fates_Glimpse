@@ -128,7 +128,16 @@ export default function App() {
   const currentTrackUrlRef = useRef<string>('');
   const currentAmbienceUrlRef = useRef<string>('');
 
+  const [volume, setVolume] = useState(0.25);
+  const [characterToDelete, setCharacterToDelete] = useState<Character | null>(null);
+
   const [combatLogs, setCombatLogs] = useState<{ id: string, text: string, type: 'hit' | 'miss' | 'crit' | 'damage' | 'status' }[]>([]);
+  const [showCombatLog, setShowCombatLog] = useState(true);
+
+  const clearCombatLogs = () => {
+    setCombatLogs([]);
+    playSfx('paper');
+  };
   const [specialtyResult, setSpecialtyResult] = useState<{ type: string, content: string, name: string, item?: any } | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [npcChatHistory, setNpcChatHistory] = useState<ChatMessage[]>([]);
@@ -154,19 +163,74 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Initialize SFX library
+    // Revised SFX Map with more stable sources
     sfxRef.current = {
-      click: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8a73566.mp3'], volume: 0.5, html5: false }),
-      roll: new Howl({ src: ['https://cdn.pixabay.com/audio/2021/08/04/audio_333a41b59c.mp3'], volume: 0.8, html5: false }),
-      paper: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_029584fd09.mp3'], volume: 0.7, html5: false }),
-      sword: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_b3c3b3131b.mp3'], volume: 0.6, html5: false }), 
-      hit: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_c89938b8e8.mp3'], volume: 0.6, html5: false }),
-      miss: new Howl({ src: ['https://cdn.pixabay.com/audio/2024/02/09/audio_65ae10b06b.mp3'], volume: 0.5, html5: false }),
-      block: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_c8de304247.mp3'], volume: 0.6, html5: false }),
-      magic: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_e200832381.mp3'], volume: 0.6, html5: false }), 
-      door: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/24/audio_9ef8145717.mp3'], volume: 0.7, html5: false }), 
-      mystic: new Howl({ src: ['https://cdn.pixabay.com/audio/2023/10/05/audio_9658097b6a.mp3'], volume: 0.6, html5: false }),
-      footsteps: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_6ba164c9d9.mp3'], volume: 0.4, html5: false }),
+      click: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3'], 
+        volume: 0.5, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load click:", err)
+      }),
+      roll: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/1125/1125-preview.mp3'], 
+        volume: 0.8, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load roll:", err)
+      }),
+      paper: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/1122/1122-preview.mp3'], 
+        volume: 0.7, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load paper:", err)
+      }),
+      sword: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/2563/2563-preview.mp3'], 
+        volume: 0.6, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load sword:", err)
+      }), 
+      hit: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/2563/2563-preview.mp3'], 
+        volume: 0.6, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load hit:", err)
+      }),
+      miss: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3'], 
+        volume: 0.5, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load miss:", err)
+      }),
+      block: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/2560/2560-preview.mp3'], 
+        volume: 0.6, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load block:", err)
+      }),
+      magic: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'], 
+        volume: 0.6, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load magic:", err)
+      }), 
+      door: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/2561/2561-preview.mp3'], 
+        volume: 0.7, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load door:", err)
+      }), 
+      mystic: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'], 
+        volume: 0.6, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load mystic:", err)
+      }),
+      footsteps: new Howl({ 
+        src: ['https://assets.mixkit.co/active_storage/sfx/2555/2555-preview.mp3'], 
+        volume: 0.4, 
+        html5: false,
+        onloaderror: (id, err) => console.warn("[SFX] Failed to load footsteps:", err)
+      }),
     };
 
     if (typeof Howler !== 'undefined') {
@@ -212,17 +276,24 @@ export default function App() {
         if (currentAmbienceUrlRef.current !== newAmbienceUrl) {
           const oldAmb = locationAmbienceRef.current;
           currentAmbienceUrlRef.current = newAmbienceUrl;
-          oldAmb.fade(oldAmb.volume(), 0, 2000);
+          if (oldAmb.playing()) {
+            oldAmb.fade(oldAmb.volume(), 0, 2000).once('fade', () => {
+               oldAmb.stop();
+               oldAmb.unload();
+            });
+          }
           
-          const newAmb = new Howl({ src: [newAmbienceUrl], loop: true, volume: 0, html5: true });
+          const newAmb = new Howl({ 
+            src: [newAmbienceUrl], 
+            loop: true, 
+            volume: 0, 
+            html5: true,
+            onloaderror: (id, err) => console.error("[Bard] Ambience Load Error:", err),
+            onplayerror: (id, err) => console.error("[Bard] Ambience Play Error:", err)
+          });
           locationAmbienceRef.current = newAmb;
           newAmb.play();
           newAmb.fade(0, 0.2, 2000);
-          
-          oldAmb.once('fade', () => {
-             oldAmb.stop();
-             oldAmb.unload();
-          });
         } else if (!locationAmbienceRef.current.playing()) {
           locationAmbienceRef.current.play();
         }
@@ -249,6 +320,12 @@ export default function App() {
     sfxRef.current[type].stop(); // Stop if already playing
     sfxRef.current[type].play();
   };
+
+  useEffect(() => {
+    if (typeof Howler !== 'undefined') {
+      Howler.volume(volume);
+    }
+  }, [volume]);
 
   useEffect(() => {
     if (typeof Howler !== 'undefined') {
@@ -304,17 +381,23 @@ export default function App() {
         if (currentTrackUrlRef.current !== trackUrl) {
           const oldTrack = mainTrackRef.current;
           currentTrackUrlRef.current = trackUrl;
-          oldTrack.fade(oldTrack.volume(), 0, 2000);
+          if (oldTrack.playing()) {
+            oldTrack.fade(oldTrack.volume(), 0, 3000).once('fade', () => {
+              oldTrack.stop();
+              oldTrack.unload();
+            });
+          }
           
-          const newTrack = new Howl({ src: [trackUrl], loop: true, volume: 0, html5: true });
+          const newTrack = new Howl({ 
+            src: [trackUrl], 
+            loop: true, 
+            volume: 0, 
+            html5: true,
+            onloaderror: (id, err) => console.error("[Bard] Music Load Error:", err)
+          });
           mainTrackRef.current = newTrack;
           newTrack.play();
-          newTrack.fade(0, 0.25, 2000);
-          
-          oldTrack.once('fade', () => {
-            oldTrack.stop();
-            oldTrack.unload();
-          });
+          newTrack.fade(0, 0.25, 3000);
         } else if (!mainTrackRef.current.playing()) {
           mainTrackRef.current.play();
         }
@@ -792,6 +875,16 @@ export default function App() {
                </button>
             )}
             <div className="h-4 w-[1px] bg-white/10 mx-2" />
+            <div className="flex items-center gap-2 text-gray-500 mr-2">
+              <Volume2 size={14} className={volume === 0 ? "text-gray-700" : "text-gold"} />
+              <input 
+                type="range" 
+                min="0" max="1" step="0.05" 
+                value={volume} 
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                className="w-16 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-gold"
+              />
+            </div>
             <button 
               onClick={() => {
                 const nextState = !audioEnabled;
@@ -1558,7 +1651,7 @@ export default function App() {
                                       <FileText size={12} />
                                    </button>
                                    <button 
-                                      onClick={() => deleteCharacter(char.id)}
+                                      onClick={() => setCharacterToDelete(char)}
                                       className="p-1.5 text-gray-600 hover:text-red-500 transition-colors"
                                       title="Vanish from matrix"
                                    >
@@ -1807,29 +1900,50 @@ export default function App() {
                   </div>
 
                   {/* Combat/System Log Overlay */}
-                  <div className="absolute bottom-6 right-6 w-72 pointer-events-none flex flex-col gap-1 overflow-hidden pointer-events-none bg-black/20 p-4 rounded-sm border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="text-[8px] text-gray-600 uppercase tracking-widest mb-2">Tactical Overlay.log</div>
-                    <AnimatePresence initial={false}>
-                      {combatLogs.slice(0, 5).map((log) => (
-                        <motion.div
-                          key={log.id}
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0 }}
-                          className={cn(
-                            "text-[10px] font-mono px-2 py-1 rounded bg-black/40 backdrop-blur-sm border-l-2",
-                            log.type === 'hit' && "border-emerald-500 text-emerald-400",
-                            log.type === 'miss' && "border-white/10 text-gray-500",
-                            log.type === 'crit' && "border-gold text-gold font-bold",
-                            log.type === 'damage' && "border-red-500 text-red-100",
-                            log.type === 'status' && "border-cyan-500 text-cyan-400"
-                          )}
-                        >
-                          {log.text}
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
+                  <div className={cn(
+                    "absolute bottom-6 right-6 w-80 flex flex-col gap-1 transition-all duration-500",
+                    showCombatLog ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+                  )}>
+                    <div className="flex justify-between items-center bg-black/60 backdrop-blur-md p-2 border border-white/10 rounded-t-sm">
+                      <div className="text-[8px] text-gold uppercase tracking-[3px] font-black">Tactical_Overlay.log</div>
+                      <div className="flex gap-2">
+                        <button onClick={clearCombatLogs} className="text-gray-500 hover:text-red-400 transition-colors uppercase text-[8px] font-bold">Clear</button>
+                        <button onClick={() => setShowCombatLog(false)} className="text-gray-500 hover:text-white"><X size={10} /></button>
+                      </div>
+                    </div>
+                    <div className="bg-black/40 backdrop-blur-sm p-4 border-x border-b border-white/10 rounded-b-sm max-h-48 overflow-y-auto custom-scrollbar flex flex-col gap-1">
+                      <AnimatePresence initial={false}>
+                        {combatLogs.map((log) => (
+                          <motion.div
+                            key={log.id}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0 }}
+                            className={cn(
+                              "text-[10px] font-mono px-2 py-1 rounded bg-black/30 border-l-2 shrink-0",
+                              log.type === 'hit' && "border-emerald-500 text-emerald-400",
+                              log.type === 'miss' && "border-white/10 text-gray-500",
+                              log.type === 'crit' && "border-gold text-gold font-bold",
+                              log.type === 'damage' && "border-red-500 text-red-100",
+                              log.type === 'status' && "border-cyan-500 text-cyan-400"
+                            )}
+                          >
+                            <span className="opacity-30 mr-2">[{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
+                            {log.text}
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
                   </div>
+
+                  {!showCombatLog && combatLogs.length > 0 && (
+                    <button 
+                      onClick={() => setShowCombatLog(true)}
+                      className="absolute bottom-6 right-6 p-2 bg-gold/10 border border-gold/20 text-gold hover:bg-gold hover:text-black transition-all rounded-sm flex items-center gap-2 text-[8px] uppercase tracking-widest font-black"
+                    >
+                      <Activity size={12} /> View Combat Logs
+                    </button>
+                  )}
 
                   {loading && (
                     <div className="mt-12 flex items-center gap-3 text-gold/40">
@@ -1997,6 +2111,51 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
+          )}
+          {characterToDelete && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setCharacterToDelete(null)}
+                className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative z-10 w-full max-w-md bg-dark-card border border-red-500/30 p-8 space-y-8 shadow-[0_0_50px_rgba(239,68,68,0.2)]"
+              >
+                <div className="text-center space-y-4">
+                  <div className="inline-flex p-4 rounded-full bg-red-500/10 text-red-500 mb-2">
+                    <Skull size={32} />
+                  </div>
+                  <h3 className="text-2xl font-serif text-white italic">Sever Neural Connection?</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed italic">
+                    Are you certain you wish to permanently purge <span className="text-red-400 font-bold not-italic">"{characterToDelete.name}"</span> from the global roster? This action is irreversible and the soul will be lost to the void.
+                  </p>
+                </div>
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setCharacterToDelete(null)}
+                    className="flex-1 px-6 py-3 bg-white/5 border border-white/10 text-gray-400 text-[10px] uppercase font-black tracking-widest hover:text-white hover:bg-white/10 transition-all"
+                  >
+                    Hold Departure
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteCharacter(characterToDelete.id);
+                      setCharacterToDelete(null);
+                    }}
+                    className="flex-1 px-6 py-3 bg-red-500 text-black text-[10px] uppercase font-black tracking-widest hover:bg-red-400 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+                  >
+                    Purge Soul
+                  </button>
+                </div>
+              </motion.div>
+            </div>
           )}
           {editingCharacter && (
             <CharacterSheet 

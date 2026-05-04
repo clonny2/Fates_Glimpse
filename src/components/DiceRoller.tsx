@@ -32,8 +32,9 @@ export function DiceRoller({ onRoll }: DiceRollerProps) {
     setIsRolling(true);
     // Play rattle sound using Howler
     const rattleSound = new Howl({
-      src: ['https://cdn.pixabay.com/audio/2021/08/04/audio_333a41b59c.mp3'],
-      volume: 0.8
+      src: ['https://assets.mixkit.co/active_storage/sfx/1125/1125-preview.mp3'],
+      volume: 0.8,
+      onloaderror: (id, err) => console.warn("[Dice] Rattle load error:", err)
     });
     rattleSound.play();
     
@@ -45,13 +46,15 @@ export function DiceRoller({ onRoll }: DiceRollerProps) {
 
       if (isCriticalSuccess) {
         new Howl({ 
-          src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_c8de304247.mp3'], 
-          volume: 0.8 
+          src: ['https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'], 
+          volume: 0.8,
+          onloaderror: (id, err) => console.warn("[Dice] Crit success load error:", err)
         }).play();
       } else if (isCriticalFail) {
         new Howl({ 
-          src: ['https://cdn.pixabay.com/audio/2022/03/24/audio_dc395616e4.mp3'], 
-          volume: 0.8 
+          src: ['https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3'], 
+          volume: 0.8,
+          onloaderror: (id, err) => console.warn("[Dice] Crit fail load error:", err)
         }).play();
       }
 

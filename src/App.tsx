@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Compass, Book, Sword, Scroll, Music, Image as ImageIcon, RefreshCcw, Map as MapIcon, ChevronRight, ChevronLeft, Search, Sparkles, Globe, Volume2, VolumeX, MessageSquare, ShieldAlert, Zap, Eye, FileText, X, Shield, Activity, Backpack, Save, Skull } from 'lucide-react';
+import { Compass, Book, Sword, Scroll, Music, Library, Image as ImageIcon, RefreshCcw, Map as MapIcon, ChevronRight, ChevronLeft, Search, Sparkles, Globe, Volume2, VolumeX, MessageSquare, ShieldAlert, Zap, Eye, FileText, X, Shield, Activity, Backpack, Save, Skull } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -1131,10 +1131,10 @@ export default function App() {
                                     {(section.label.includes('Artifact') || section.label.includes('Land')) && (
                                       <button 
                                         onClick={() => handleSpecialty('lore', item)}
-                                        className="p-1.5 rounded-full bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all"
-                                        title="Lore Analysis Specialty"
+                                        className="p-1.5 rounded-full bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all transform hover:scale-110"
+                                        title="Summon Lore Agent"
                                       >
-                                        <Zap size={12} />
+                                        <Library size={12} />
                                       </button>
                                     )}
                                   </div>
@@ -1825,7 +1825,7 @@ export default function App() {
                 <div className="flex items-center gap-3 py-2 border-b border-gold/5">
                   {specialtyResult.type === 'chat' && <div className="text-gold flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest"><MessageSquare size={14} /> Neural Voice Decryption</div>}
                   {specialtyResult.type === 'tactics' && <div className="text-red-400 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest"><ShieldAlert size={14} /> Threat Vector Analysis</div>}
-                  {specialtyResult.type === 'lore' && <div className="text-cyan-400 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest"><Zap size={14} /> Acausal Wisdom Extraction</div>}
+                  {specialtyResult.type === 'lore' && <div className="text-cyan-400 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest"><Library size={14} /> Lore Agent Deep Analysis</div>}
                 </div>
 
                 {specialtyResult.type === 'chat' ? (
@@ -1871,8 +1871,20 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                  <div className="prose prose-invert prose-sm max-w-none prose-p:italic prose-headings:font-serif prose-headings:text-gold prose-strong:text-gold prose-code:text-emerald-400">
-                    <ReactMarkdown>{specialtyResult.content}</ReactMarkdown>
+                  <div className="space-y-6">
+                    {specialtyResult.type === 'lore' && (
+                       <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-sm">
+                          <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
+                             <Library size={12} /> Archive Lore Agent Report
+                          </div>
+                          <div className="text-gray-400 text-[11px] italic font-serif leading-relaxed">
+                            "I have reached into the deep-archives of {currentRealm?.name}. The following historical resonance was detected..."
+                          </div>
+                       </div>
+                    )}
+                    <div className="prose prose-invert prose-sm max-w-none prose-p:italic prose-headings:font-serif prose-headings:text-gold prose-strong:text-gold prose-code:text-emerald-400">
+                      <ReactMarkdown>{specialtyResult.content}</ReactMarkdown>
+                    </div>
                   </div>
                 )}
               </div>

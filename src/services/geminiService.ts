@@ -257,11 +257,21 @@ export async function analyzeLore(entityName: string, entityDesc: string, realmN
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      config: { systemInstruction: `Lore for ${entityName} in ${realmName}.` },
-      contents: [{ role: "user", parts: [{ text: `Lore of ${entityName}? Context: ${entityDesc}` }] }]
+      config: { 
+        systemInstruction: `You are the ARCHIVE LORE AGENT, an AI specialized in uncovering forgotten histories and hidden cosmic connections in ${realmName}.
+        When analyzing an entity (Artifact or Land), do not just repeat the description.
+        Instead, provide:
+        1. HISTORICAL SIGNIFICANCE: Its role in major past conflicts or era transitions.
+        2. HIDDEN CONNECTIONS: How it relates to other entities, gods, or underlying cosmic forces.
+        3. COSMIC RESONANCE: The metaphysical property it possesses.
+        4. SPECULATION: One potential future consequence or secret use.
+        
+        Use a scholarly, slightly mystical, yet highly analytical tone. Use Markdown headers and bullet points.`
+      },
+      contents: [{ role: "user", parts: [{ text: `Analyze the lore of ${entityName}. Context: ${entityDesc}` }] }]
     });
     return { content: response.text };
-  } catch (e) { return { content: "Error fetching lore." }; }
+  } catch (e) { return { content: "Lore extraction failed due to archival interference." }; }
 }
 
 export async function getStrategicInsight(story: string, options: string[], realmName: string) {

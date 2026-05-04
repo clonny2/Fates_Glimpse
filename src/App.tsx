@@ -15,6 +15,8 @@ import { REALMS, Realm, StoryStep, ChatMessage, ResearchData, Character, Party }
 import { researchRealm, generateStoryTurn, getLearnedRealms, generateCustomRealm, chatWithNPC, getMonsterTactics, analyzeLore, getStrategicInsight, generateRandomCharacter } from './services/geminiService';
 import { DiceRoller } from './components/DiceRoller';
 
+import { CharacterSheet } from './components/CharacterSheet';
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -123,6 +125,7 @@ export default function App() {
   const mainTrackRef = useRef<Howl | null>(null);
   const sfxRef = useRef<Record<string, Howl>>({});
   const locationAmbienceRef = useRef<Howl | null>(null);
+  const currentTrackUrlRef = useRef<string>('');
 
   const [specialtyResult, setSpecialtyResult] = useState<{ type: string, content: string, name: string, item?: any } | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
@@ -151,17 +154,17 @@ export default function App() {
   useEffect(() => {
     // Initialize SFX library
     sfxRef.current = {
-      click: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8a73566.mp3'], volume: 0.1, html5: true }),
-      roll: new Howl({ src: ['https://cdn.pixabay.com/audio/2021/08/04/audio_333a41b59c.mp3'], volume: 0.6, html5: true }),
-      paper: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_029584fd09.mp3'], volume: 0.5, html5: true }),
-      sword: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_b3c3b3131b.mp3'], volume: 0.5, html5: true }), 
-      hit: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_c89938b8e8.mp3'], volume: 0.4, html5: true }),
-      miss: new Howl({ src: ['https://cdn.pixabay.com/audio/2024/02/09/audio_65ae10b06b.mp3'], volume: 0.3, html5: true }),
-      block: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_c8de304247.mp3'], volume: 0.4, html5: true }),
-      magic: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_e200832381.mp3'], volume: 0.4, html5: true }), 
-      door: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/24/audio_9ef8145717.mp3'], volume: 0.5, html5: true }), 
-      mystic: new Howl({ src: ['https://cdn.pixabay.com/audio/2023/10/05/audio_9658097b6a.mp3'], volume: 0.3, html5: true }),
-      footsteps: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_6ba164c9d9.mp3'], volume: 0.2, html5: true }),
+      click: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_c8c8a73566.mp3'], volume: 0.5, html5: false }),
+      roll: new Howl({ src: ['https://cdn.pixabay.com/audio/2021/08/04/audio_333a41b59c.mp3'], volume: 0.8, html5: false }),
+      paper: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_029584fd09.mp3'], volume: 0.7, html5: false }),
+      sword: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_b3c3b3131b.mp3'], volume: 0.6, html5: false }), 
+      hit: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/10/audio_c89938b8e8.mp3'], volume: 0.6, html5: false }),
+      miss: new Howl({ src: ['https://cdn.pixabay.com/audio/2024/02/09/audio_65ae10b06b.mp3'], volume: 0.5, html5: false }),
+      block: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_c8de304247.mp3'], volume: 0.6, html5: false }),
+      magic: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_e200832381.mp3'], volume: 0.6, html5: false }), 
+      door: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/24/audio_9ef8145717.mp3'], volume: 0.7, html5: false }), 
+      mystic: new Howl({ src: ['https://cdn.pixabay.com/audio/2023/10/05/audio_9658097b6a.mp3'], volume: 0.6, html5: false }),
+      footsteps: new Howl({ src: ['https://cdn.pixabay.com/audio/2022/03/15/audio_6ba164c9d9.mp3'], volume: 0.4, html5: false }),
     };
 
     if (typeof Howler !== 'undefined') {
@@ -217,7 +220,11 @@ export default function App() {
   }, [currentTurn?.story, audioEnabled]);
 
   const playSfx = (type: string) => {
-    if (!audioEnabled || !sfxRef.current[type]) return;
+    if (!audioEnabled || !sfxRef.current[type]) {
+      console.log("[SFX] Skip (Disabled/Missing):", type);
+      return;
+    }
+    console.log("[SFX] Play:", type);
     sfxRef.current[type].play();
   };
 
@@ -272,8 +279,9 @@ export default function App() {
       }
 
       if (mainTrackRef.current) {
-        // @ts-ignore
-        if (mainTrackRef.current._src !== trackUrl) {
+        if (currentTrackUrlRef.current !== trackUrl) {
+          console.log("[Bard] Changing track to:", trackUrl);
+          currentTrackUrlRef.current = trackUrl;
           mainTrackRef.current.fade(0.25, 0, 2000).once('fade', () => {
             mainTrackRef.current?.stop();
             mainTrackRef.current = new Howl({ src: [trackUrl], loop: true, volume: 0, html5: true });
@@ -284,6 +292,8 @@ export default function App() {
           mainTrackRef.current.play();
         }
       } else {
+        console.log("[Bard] Initializing main track:", trackUrl);
+        currentTrackUrlRef.current = trackUrl;
         mainTrackRef.current = new Howl({ src: [trackUrl], loop: true, volume: 0.25, html5: true });
         mainTrackRef.current.play();
       }
@@ -438,6 +448,15 @@ export default function App() {
           return next;
         }
         return [...prev, char];
+      });
+      setParty(prev => {
+        const idx = prev.members.findIndex(m => m.id === char.id);
+        if (idx >= 0) {
+          const nextMembers = [...prev.members];
+          nextMembers[idx] = char;
+          return { ...prev, members: nextMembers };
+        }
+        return prev;
       });
     } catch (e) {
       console.error(e);
@@ -673,47 +692,34 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-[#0d0b09]">
       {/* Background Ambience Layers */}
-      <div className="absolute inset-0 z-0 opacity-[0.07] pointer-events-none mix-blend-overlay">
+      <div className="absolute inset-0 z-0 opacity-40 pointer-events-none">
         <img 
-          src={`/image?prompt=${encodeURIComponent(currentRealm?.imagePrompt || 'legendary Dungeons and Dragons artifact and monsters in cosmic chaos')}&seed=background-dnd`} 
+          src={`/image?prompt=${encodeURIComponent('Dungeons and Dragons legendary landscape concept art, cinematic lighting, high fantasy, epic scale, ' + (currentRealm?.name || 'mythic realm'))}&seed=global-bg-seed&width=1920&height=1080`} 
           className="w-full h-full object-cover"
-          alt="Ancient dragon background"
+          alt="Ancient realm background"
+          referrerPolicy="no-referrer"
         />
       </div>
       <div className="absolute inset-0 z-0 opacity-40 pointer-events-none transition-colors duration-1000" style={{ backgroundColor: getMoodColor(currentTurn?.musicMood) }}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_#0d0b09_100%)]" />
       </div>
 
-      <header className="relative z-10 border-b border-[#333] bg-dark-surface p-4">
+      <header className="relative z-20 border-b border-[#333] bg-dark-surface/60 backdrop-blur-md p-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-6">
             <h1 className="font-serif italic text-gold text-xl tracking-wider">
-              CHRONICLER ARCHIVE v4.0
+              CHRONICLER ARCHIVE v4.2
             </h1>
             <div className="status-badge hidden sm:block">
-              Research Level: Expert
+              {currentRealm ? currentRealm.name.toUpperCase() : "Select Realm"}
             </div>
           </div>
-          <div className="flex items-center gap-6 text-[11px] uppercase tracking-tighter">
+          <div className="flex items-center gap-4 text-[11px] uppercase tracking-tighter">
             <button 
               onClick={() => {
                 if (step !== 'splash') {
                   setStep('bestiary');
                   playSfx('paper');
-                  if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
-                }
-              }}
-              className={cn("flex items-center gap-2 transition-all p-2 rounded-sm", step === 'bestiary' ? "text-gold bg-gold/10" : "text-gray-500 hover:text-white")}
-            >
-              <Skull size={16} /> 
-              <span className="hidden md:inline">Bestiary</span>
-            </button>
-            <button 
-              onClick={() => {
-                if (step !== 'splash') {
-                  setStep('bestiary');
-                  playSfx('paper');
-                  if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
                 }
               }}
               className={cn("flex items-center gap-2 transition-all p-2 rounded-sm", step === 'bestiary' ? "text-gold bg-gold/10" : "text-gray-500 hover:text-white")}
@@ -726,7 +732,6 @@ export default function App() {
                 if (step !== 'splash') {
                   setStep('party-builder');
                   playSfx('click');
-                  if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
                 }
               }}
               className={cn("flex items-center gap-2 transition-all p-2 rounded-sm", step === 'party-builder' ? "text-gold bg-gold/10" : "text-gray-500 hover:text-white")}
@@ -734,12 +739,21 @@ export default function App() {
               <Zap size={16} /> 
               <span className="hidden md:inline">Global Roster</span>
             </button>
+            {currentRealm && (
+               <button 
+                 onClick={() => setStep('selecting')}
+                 className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors p-2"
+               >
+                 <RefreshCcw size={16} />
+                 <span className="hidden md:inline">Change Realm</span>
+               </button>
+            )}
+            <div className="h-4 w-[1px] bg-white/10 mx-2" />
             <button 
               onClick={() => {
                 const nextState = !audioEnabled;
                 setAudioEnabled(nextState);
                 if (nextState) {
-                  // @ts-ignore
                   if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
                   playSfx('click');
                 }
@@ -749,32 +763,6 @@ export default function App() {
               {audioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
               <span className="hidden md:inline">{audioEnabled ? "Ambience Active" : "Silence"}</span>
             </button>
-            <div className="text-gray-500 hidden md:block">Multi-Agent RAG System Active</div>
-          {currentRealm && (
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => {
-                  const nextState = !audioEnabled;
-                  setAudioEnabled(nextState);
-                  if (nextState) {
-                    // @ts-ignore
-                    if (typeof Howler !== 'undefined' && Howler.ctx) Howler.ctx.resume();
-                    playSfx('click');
-                  }
-                }}
-                className={`p-2 rounded-full transition-colors ${audioEnabled ? 'text-gold bg-gold/10' : 'text-gray-500 bg-white/5'}`}
-              >
-                {audioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-              </button>
-              <span className="text-gold font-bold">{currentRealm.name}</span>
-              <button 
-                onClick={() => setStep('selecting')}
-                className="hover:text-white transition-colors flex items-center gap-1 text-gray-400 bg-white/5 px-2 py-1 rounded-sm text-xs"
-              >
-                <RefreshCcw size={12} /> Change Realm
-              </button>
-            </div>
-          )}
           </div>
         </div>
       </header>
@@ -798,7 +786,16 @@ export default function App() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   setAudioEnabled(true);
-                  setStep('selecting');
+                  if (typeof Howler !== 'undefined' && Howler.ctx) {
+                    Howler.ctx.resume().then(() => {
+                      console.log("[Audio] Context Resumed on Start");
+                      setStep('selecting');
+                      playSfx('mystic');
+                    });
+                  } else {
+                    setStep('selecting');
+                    playSfx('mystic');
+                  }
                 }}
                 className="px-12 py-4 bg-gold text-black font-bold uppercase tracking-[4px] hover:bg-white transition-colors"
               >
@@ -1538,7 +1535,7 @@ export default function App() {
                 <div 
                   className="absolute inset-0 z-0 opacity-15 grayscale pointer-events-none"
                   style={{ 
-                    backgroundImage: `url(${currentRealm?.imageUrl || `/image?prompt=${encodeURIComponent('Atmospheric D&D landscape for ' + currentRealm?.name)}&seed=${currentRealm?.id}-bg`})`,
+                    backgroundImage: `url(${`/image?prompt=${encodeURIComponent('Atmospheric fantasy landscape for ' + currentRealm?.name)}&seed=${currentRealm?.id}-bg&width=800&height=1000`})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                   }}
@@ -1725,7 +1722,7 @@ export default function App() {
 
               {/* Right Column: Narrative & Interaction */}
               <div className="lg:col-span-9 flex flex-col space-y-8 h-full">
-                <div className="flex-1 bg-dark-surface narrative-accent p-12 overflow-y-auto min-h-[400px]">
+                <div className="flex-1 bg-dark-surface/40 backdrop-blur-sm narrative-accent p-12 overflow-y-auto min-h-[400px]">
                   <div className="text-[10px] text-gold uppercase tracking-[4px] mb-8 font-bold opacity-60">CHRONICLE_ENTRY_LOG</div>
                   <div className="prose max-w-none">
                     <ReactMarkdown>
@@ -1889,212 +1886,12 @@ export default function App() {
             </motion.div>
           )}
           {editingCharacter && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-dark-bg/90 backdrop-blur-md"
-            >
-              <div className="bg-dark-card w-full max-w-4xl subtle-border max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-white/5 flex justify-between items-center bg-dark-accent/50">
-                   <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-dark-accent rounded-sm overflow-hidden border border-white/10">
-                         <img src={`/image?prompt=${encodeURIComponent('Dungeons and Dragons character portrait: ' + editingCharacter.race + ' ' + editingCharacter.class + ' ' + editingCharacter.name)}&seed=${editingCharacter.id}`} alt={editingCharacter.name} className="w-full h-full object-cover" />
-                      </div>
-                      <div>
-                         <h3 className="text-white font-serif italic text-xl">{editingCharacter.name}</h3>
-                         <div className="text-[10px] text-gold uppercase tracking-[2px] font-bold opacity-60">
-                           Level {editingCharacter.level} {editingCharacter.race} {editingCharacter.class}
-                         </div>
-                      </div>
-                   </div>
-                   <button 
-                    onClick={() => setEditingCharacter(null)}
-                    className="text-gray-500 hover:text-white transition-colors"
-                   >
-                      <X size={20} />
-                   </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-8 grid lg:grid-cols-12 gap-12 custom-scrollbar">
-                   {/* Left Column: Stats & Skills */}
-                   <div className="lg:col-span-5 space-y-8">
-                      <div className="space-y-4">
-                         <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
-                           <Activity size={10} /> Ability Scores
-                         </h4>
-                         <div className="grid grid-cols-3 gap-4">
-                            {Object.entries(editingCharacter.stats || { strength: 10, dexterity: 10, constitution: 10, intelligence: 10, wisdom: 10, charisma: 10 }).map(([stat, val]) => (
-                               <div key={stat} className="bg-white/5 p-3 rounded-sm border border-white/5 text-center group hover:border-gold/30 transition-all">
-                                  <div className="text-[9px] uppercase text-gray-500 font-bold mb-1">{stat.slice(0, 3)}</div>
-                                  <input 
-                                    type="number"
-                                    value={val}
-                                    onChange={(e) => {
-                                      const newVal = parseInt(e.target.value) || 0;
-                                      setEditingCharacter(prev => prev ? ({
-                                        ...prev,
-                                        stats: { ...prev.stats, [stat]: newVal }
-                                      }) : null);
-                                    }}
-                                    className="bg-transparent text-white font-serif text-xl w-full text-center outline-none"
-                                  />
-                                  <div className="text-[10px] text-emerald-500 font-mono">
-                                    {Math.floor((val - 10) / 2) >= 0 ? `+${Math.floor((val - 10) / 2)}` : Math.floor((val - 10) / 2)}
-                                  </div>
-                               </div>
-                            ))}
-                         </div>
-                      </div>
-
-                      <div className="space-y-4">
-                         <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
-                           <Sword size={10} /> Proficiencies & Skills
-                         </h4>
-                         <div className="flex flex-wrap gap-2">
-                            {(editingCharacter.skills || []).map((skill, i) => (
-                               <div key={i} className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-sm border border-white/10 group">
-                                  <span className="text-[11px] text-gray-300">{skill}</span>
-                                  <button 
-                                    onClick={() => {
-                                      setEditingCharacter(prev => prev ? ({
-                                        ...prev,
-                                        skills: prev.skills.filter((_, idx) => idx !== i)
-                                      }) : null);
-                                    }}
-                                    className="text-gray-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                  >
-                                    <X size={10} />
-                                  </button>
-                               </div>
-                            ))}
-                            <button 
-                              onClick={() => {
-                                const skill = prompt("Add skill/proficiency:");
-                                if (skill) {
-                                  setEditingCharacter(prev => prev ? ({
-                                    ...prev,
-                                    skills: [...(prev.skills || []), skill]
-                                  }) : null);
-                                }
-                              }}
-                              className="text-[10px] uppercase tracking-widest text-gold hover:text-white transition-colors border border-gold/30 px-2 py-1 rounded-sm"
-                            >
-                              + New Skill
-                            </button>
-                         </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
-                           <Shield size={10} /> Vitality
-                         </h4>
-                         <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-white/5 p-4 border border-white/5">
-                               <div className="text-[9px] uppercase text-gray-500 font-bold mb-1">Current HP</div>
-                               <input 
-                                 type="number"
-                                 value={editingCharacter.hp}
-                                 onChange={(e) => setEditingCharacter(prev => prev ? ({ ...prev, hp: parseInt(e.target.value) || 0 }) : null)}
-                                 className="bg-transparent text-white font-serif text-3xl w-full outline-none"
-                               />
-                            </div>
-                            <div className="bg-white/5 p-4 border border-white/5">
-                               <div className="text-[9px] uppercase text-gray-500 font-bold mb-1">Max HP</div>
-                               <input 
-                                 type="number"
-                                 value={editingCharacter.maxHp}
-                                 onChange={(e) => setEditingCharacter(prev => prev ? ({ ...prev, maxHp: parseInt(e.target.value) || 0 }) : null)}
-                                 className="bg-transparent text-white font-serif text-3xl w-full outline-none"
-                               />
-                            </div>
-                         </div>
-                      </div>
-                   </div>
-
-                   {/* Right Column: Inventory & Lore */}
-                   <div className="lg:col-span-7 space-y-8">
-                      <div className="space-y-4">
-                         <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
-                           <Backpack size={10} /> Inventory & Equipment
-                         </h4>
-                         <div className="grid grid-cols-2 gap-2">
-                            {editingCharacter.inventory.map((item, i) => (
-                               <div key={i} className="flex items-center gap-3 bg-white/5 p-3 rounded-sm border border-white/5 group">
-                                  <input 
-                                    type="text"
-                                    value={item}
-                                    onChange={(e) => {
-                                      setEditingCharacter(prev => {
-                                        if (!prev) return null;
-                                        const nextInv = [...prev.inventory];
-                                        nextInv[i] = e.target.value;
-                                        return { ...prev, inventory: nextInv };
-                                      });
-                                    }}
-                                    className="bg-transparent text-[11px] text-gray-300 w-full outline-none"
-                                  />
-                                  <button 
-                                    onClick={() => {
-                                      setEditingCharacter(prev => prev ? ({
-                                        ...prev,
-                                        inventory: prev.inventory.filter((_, idx) => idx !== i)
-                                      }) : null);
-                                    }}
-                                    className="text-gray-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                  >
-                                    <X size={12} />
-                                  </button>
-                               </div>
-                            ))}
-                            <button 
-                              onClick={() => {
-                                setEditingCharacter(prev => prev ? ({
-                                  ...prev,
-                                  inventory: [...(prev.inventory || []), "New Item"]
-                                }) : null);
-                              }}
-                              className="col-span-2 text-[10px] uppercase tracking-widest text-gold hover:text-white transition-colors border border-gold/30 p-3 rounded-sm text-center border-dashed"
-                            >
-                              + Acquire Item
-                            </button>
-                         </div>
-                      </div>
-
-                      <div className="space-y-4">
-                         <h4 className="text-[10px] uppercase font-black tracking-widest text-gold opacity-50 flex items-center gap-2">
-                           <Scroll size={10} /> Backstory & Persona
-                         </h4>
-                         <textarea 
-                           value={editingCharacter.description}
-                           onChange={(e) => setEditingCharacter(prev => prev ? ({ ...prev, description: e.target.value }) : null)}
-                           className="w-full h-48 bg-white/5 p-6 rounded-sm border border-white/5 text-gray-300 text-sm leading-relaxed outline-none focus:border-gold/30 transition-colors custom-scrollbar"
-                         />
-                      </div>
-                   </div>
-                </div>
-
-                <div className="p-6 border-t border-white/5 bg-dark-accent/30 flex justify-end gap-4">
-                   <button 
-                    onClick={() => setEditingCharacter(null)}
-                    className="px-6 py-2 text-[10px] uppercase tracking-widest font-bold text-gray-500 hover:text-white transition-colors"
-                   >
-                     Discard Changes
-                   </button>
-                   <button 
-                    onClick={async () => {
-                      if (!editingCharacter) return;
-                      await saveNewCharacter(editingCharacter);
-                      setEditingCharacter(null);
-                      playSfx('magic');
-                    }}
-                    className="bg-gold text-black px-8 py-2 text-[10px] uppercase font-black tracking-[4px] hover:bg-white transition-all flex items-center gap-2 shadow-xl shadow-gold/20"
-                   >
-                     <Save size={14} /> Synchronize Sheet
-                   </button>
-                </div>
-              </div>
-            </motion.div>
+            <CharacterSheet 
+              character={editingCharacter} 
+              onSave={saveNewCharacter} 
+              onClose={() => setEditingCharacter(null)}
+              playSfx={playSfx}
+            />
           )}
         </AnimatePresence>
       </main>
